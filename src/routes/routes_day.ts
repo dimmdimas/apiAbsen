@@ -100,7 +100,8 @@ routerData.get('/date', async (req: Request, res: Response) => {
         // 5. Berhasil! Kirim tanggalnya ke Frontend
         return res.status(200).json({
             message: 'Berhasil mengambil tanggal',
-            tanggal: adminConfig.tanggal
+            tanggal: adminConfig.tanggal,
+            jam16: adminConfig.jam16
         });
 
     } catch (error) {
