@@ -115,6 +115,7 @@ routerData.post('/absen', async (req: Request, res: Response) => {
         const {
             nik,
             nama,
+            jabatan,
             tandaTangan,
             targetDay,
             startJam, startMenit, startDetik, // Data Start
@@ -144,6 +145,7 @@ routerData.post('/absen', async (req: Request, res: Response) => {
             tanggal: adminConfig.tanggal,
             nik: nik,
             nama: nama,
+            jabatan: jabatan,
             tandaTangan: tandaTangan,
             waktuMulai: formatWaktuMulai,     // Simpan hasil gabungan start
             waktuSelesai: formatWaktuSelesai  // Simpan hasil gabungan end

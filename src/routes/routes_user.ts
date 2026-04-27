@@ -11,7 +11,6 @@ routerUser.get('/:nik', async (req: Request, res: Response) => {
             const user = await User.findOne({ nik: nik });
             if (!user) {
                 return res.status(404).json({ message: 'User tidak ditemukan' });
-
             }
             res.json(user)
         }
