@@ -3,16 +3,33 @@ import { Day1, Day2 } from "../models/data.js";
 
 const routerData = Router();
 
+const formatTanggalIndo = (dateStr: string) => {
+    if (!dateStr) return "";
+    const parts = dateStr.split('-').map(Number);
+    const year = parts[0] || 0;
+    const month = parts[1] || 1;
+    const day = parts[2] || 1;
+
+    const date = new Date(year, month - 1, day); 
+    return new Intl.DateTimeFormat('id-ID', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric'
+    }).format(date);
+};
+
 //admin
 routerData.post('/day1', async (req: Request, res: Response) => {
     try {
         const { tanggal, money, jam16 } = req.body
 
+        const tanggalFix = formatTanggalIndo(tanggal);
+
         await Day1.deleteMany({});
         await Day2.deleteMany({});
         await Day1.create({
             type: 'Date',
-            tanggal,
+            tanggal: tanggalFix,
             money,
             jam16
         })
@@ -20,7 +37,7 @@ routerData.post('/day1', async (req: Request, res: Response) => {
         res.status(200).json({
             message: 'Day 1 Berasil direset dan dibuat baru!',
             type: 'Date',
-            tanggal: tanggal,
+            tanggal: tanggalFix,
             money,
             jam16
         })
@@ -35,10 +52,12 @@ routerData.post('/day2', async (req: Request, res: Response) => {
     try {
         const { tanggal, money, jam16 } = req.body
 
+        const tanggalFix = formatTanggalIndo(tanggal);
+
         await Day2.deleteMany({});
         await Day2.create({
             type: 'Date',
-            tanggal,
+            tanggal: tanggalFix,
             money,
             jam16
         })
@@ -46,7 +65,7 @@ routerData.post('/day2', async (req: Request, res: Response) => {
         res.status(200).json({
             message: 'Day 2 Berasil direset dan dibuat baru!',
             type: 'Date',
-            tanggal: tanggal,
+            tanggal: tanggalFix,
             money,
             jam16
         })
