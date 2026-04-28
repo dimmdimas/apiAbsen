@@ -4,7 +4,7 @@ const daySchema = new mongoose.Schema({
     tanggal: String,
     nik: String,
     nama: String,
-    jabatan: String,
+    posisi: String,
     tandaTangan: String,
     type: String,
     waktuMulai: String,
