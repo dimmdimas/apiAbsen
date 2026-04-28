@@ -25,8 +25,8 @@ routerData.post('/day1', async (req: Request, res: Response) => {
 
         const tanggalFix = formatTanggalIndo(tanggal);
 
-        await Day1.deleteMany({});
         await Day2.deleteMany({});
+        await Day1.deleteMany({});
         await Day1.create({
             type: 'Date',
             tanggal: tanggalFix,
@@ -130,7 +130,6 @@ routerData.post('/absen', async (req: Request, res: Response) => {
         } else {
             return res.status(400).json({ error: 'Hari tidak valid' });
         }
-
 
         const adminConfig = await SelectedModel.findOne().sort({ _id: 1 });
 
