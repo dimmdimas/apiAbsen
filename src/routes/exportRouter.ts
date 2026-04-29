@@ -324,7 +324,7 @@ router.get('/export-excel/:day', async (req: Request, res: Response) => {
         // 7. KIRIM RESPONSE KE BROWSER
         // =========================================================
         res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-        res.setHeader('Content-Disposition', `attachment; filename=Laporan_Lembur_${day}.xlsx`);
+        res.setHeader('Content-Disposition', `attachment; filename=Laporan_Lembur_${tanggalDatabase}.xlsx`);
 
         await workbook.xlsx.write(res);
         res.end();
