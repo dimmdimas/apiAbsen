@@ -4,6 +4,7 @@ import connectDB from './utils/db.js';
 import router from './routes/routes_user.js';
 import routerData from './routes/routes_day.js';
 import exportRouter from './routes/exportRouter.js';
+import monitoringRouter from './routes/monitoringRouter.js'
 
 async function server() {
   const app = express();
@@ -16,6 +17,7 @@ async function server() {
   app.use('/api/users', router);
   app.use('/api/', routerData)
   app.use('/api', exportRouter);
+  app.use('/api', monitoringRouter);
 
   app.use(express.json({ limit: '10mb' }));
 
