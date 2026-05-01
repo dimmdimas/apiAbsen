@@ -25,16 +25,14 @@ const hitungTotalJam = (waktuMulai?: string | null, waktuSelesai?: string | null
     const partsMulai = waktuMulai.split(':');
     const startJam = Number(partsMulai[0]) || 0;
     const startMenit = Number(partsMulai[1]) || 0;
-    const startDetik = Number(partsMulai[2]) || 0; // Tambahan untuk detik
 
     const partsSelesai = waktuSelesai.split(':');
     const endJam = Number(partsSelesai[0]) || 0;
-    const endMenit = Number(partsSelesai[1]) || 0;
-    const endDetik = Number(partsSelesai[2]) || 0; // Tambahan untuk detik
+    const endMenit = Number(partsSelesai[1]) || 0; // Tambahan untuk detik
 
     // Jadikan semua perhitungan ke satuan detik
-    let totalMulaiDetik = (startJam * 3600) + (startMenit * 60) + startDetik;
-    let totalSelesaiDetik = (endJam * 3600) + (endMenit * 60) + endDetik;
+    let totalMulaiDetik = (startJam * 3600) + (startMenit * 60);
+    let totalSelesaiDetik = (endJam * 3600) + (endMenit * 60);
 
     // Penanganan jika lewat tengah malam (misal lembur sampai pagi)
     if (totalSelesaiDetik < totalMulaiDetik) {
@@ -47,10 +45,9 @@ const hitungTotalJam = (waktuMulai?: string | null, waktuSelesai?: string | null
     const jam = Math.floor(selisihDetik / 3600);
     const sisaDetikSetelahJam = selisihDetik % 3600;
     const menit = Math.floor(sisaDetikSetelahJam / 60);
-    const detik = sisaDetikSetelahJam % 60;
 
     // Output dengan format HH:mm:ss
-    return `${String(jam).padStart(2, '0')}:${String(menit).padStart(2, '0')}:${String(detik).padStart(2, '0')}`;
+    return `${String(jam).padStart(2, '0')}:${String(menit).padStart(2, '0')}`;
 };
 
 // --- HELPER: Fungsi Dapatkan Hari ---

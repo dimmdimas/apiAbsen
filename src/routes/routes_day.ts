@@ -118,8 +118,8 @@ routerData.post('/absen', async (req: Request, res: Response) => {
             jabatan,
             tandaTangan,
             targetDay,
-            startJam, startMenit, startDetik, // Data Start
-            endJam, endMenit, endDetik        // Data End
+            startJam, startMenit,   // Data Start
+            endJam, endMenit        // Data End
         } = req.body;
 
         let SelectedModel;
@@ -137,8 +137,8 @@ routerData.post('/absen', async (req: Request, res: Response) => {
             return res.status(404).json({ error: 'Admin belum mengatur tanggal untuk hari ini' });
         }
 
-        const formatWaktuMulai = `${startJam || '00'}:${startMenit || '00'}:${startDetik || '00'}`;
-        const formatWaktuSelesai = `${endJam || '00'}:${endMenit || '00'}:${endDetik || '00'}`;
+        const formatWaktuMulai = `${startJam || '00'}:${startMenit || '00'}`;
+        const formatWaktuSelesai = `${endJam || '00'}:${endMenit || '00'}`;
 
         const absenBaru = new SelectedModel({
             tanggal: adminConfig.tanggal,
