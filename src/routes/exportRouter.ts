@@ -140,6 +140,8 @@ router.get('/export-excel/:day', async (req: Request, res: Response) => {
             const waktuMulai = item.waktuMulai || '';
             const waktuSelesai = item.waktuSelesai || '';
 
+            const isTidakLembur = (waktuMulai.startsWith('00:00') && waktuSelesai.startsWith('00:00'));
+
             row.getCell(1).value = index + 1;
             row.getCell(2).value = nik;
             row.getCell(3).value = nama;
@@ -147,22 +149,36 @@ router.get('/export-excel/:day', async (req: Request, res: Response) => {
             row.getCell(5).value = waktuMulai;
             row.getCell(6).value = waktuSelesai;
 
-            const selisihJam = hitungTotalJam(waktuMulai, waktuSelesai);
-            row.getCell(7).value = selisihJam;
+            // Logika Pengecekan Jam
+            if (isTidakLembur) {
+                // 1. Merge cell E sampai H
+                worksheet.mergeCells(`E${currentRow}:H${currentRow}`);
 
-            // Logika Uang Makan: Kosong jika jam pulang kosong
-            let uangMakan: number | string = '';
+                // 2. Akses sel utama (E) dan tulis teks
+                const mergedCell = worksheet.getCell(`E${currentRow}`);
+                mergedCell.value = 'Tidak Ikut Lembur';
 
-            if (waktuSelesai && waktuSelesai !== '00:00:00' && waktuSelesai !== '') {
-                // Prioritaskan mengambil money dari data karyawan itu sendiri (item.money)
-                // Jika tidak ada, baru ambil dari konfigurasi global (dataAbsen[0].money)
-                const nominalDatabase = item.money || dataAbsen[0]?.money || 0;
+                // Format Rata Tengah
+                mergedCell.alignment = { vertical: 'middle', horizontal: 'center' };
+                // Opsional: Buat teks tebal / miring
+                mergedCell.font = { italic: true, bold: true };
+                
+            } else {
+                // JIKA IKUT LEMBUR: Tulis jam seperti biasa
+                row.getCell(5).value = waktuMulai;
+                row.getCell(6).value = waktuSelesai;
+                
+                const selisihJam = hitungTotalJam(waktuMulai, waktuSelesai);
+                row.getCell(7).value = selisihJam;
 
-                // Pastikan tipe datanya adalah Number agar format Rupiah di Excel berfungsi
-                uangMakan = Number(nominalDatabase);
+                // Logika Uang Makan
+                let uangMakan: number | string = '';
+                if (waktuSelesai && waktuSelesai !== '00:00:00' && waktuSelesai !== '') {
+                    const nominalDatabase = item.money || dataAbsen[0]?.money || 0;
+                    uangMakan = Number(nominalDatabase);
+                }
+                row.getCell(8).value = uangMakan;
             }
-
-            row.getCell(8).value = uangMakan;
 
             // 1. MEMBUAT BORDER & FORMATTING (Mengikuti setiap baris data yang diisi)
             for (let i = 1; i <= 10; i++) {
