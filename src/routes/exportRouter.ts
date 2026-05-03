@@ -361,6 +361,9 @@ router.get('/export-excel/:day', async (req: Request, res: Response) => {
         // =========================================================
         res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
         res.setHeader('Content-Disposition', `attachment; filename=Laporan_Lembur_${tanggalDatabase}.xlsx`);
+        
+        // --- TAMBAHKAN BARIS INI AGAR FRONTEND BISA BACA NAMA FILE ---
+        res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition');
 
         await workbook.xlsx.write(res);
         res.end();
