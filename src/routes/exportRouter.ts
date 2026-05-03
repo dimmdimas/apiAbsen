@@ -94,7 +94,7 @@ router.get('/export-excel/:day', async (req: Request, res: Response) => {
         else return res.status(400).json({ error: 'Parameter hari tidak valid' });
 
         // 2. Ambil data dari database (Diurutkan berdasarkan nama)
-        const dataAbsen = await SelectedModel.find().sort({ nik: 1, jabatan: 1 });
+        const dataAbsen = await SelectedModel.find().sort({ jabatan: 1,nik: 1 });
         if (!dataAbsen || dataAbsen.length === 0) {
             return res.status(404).json({ error: 'Tidak ada data absen untuk diekspor.' });
         }
