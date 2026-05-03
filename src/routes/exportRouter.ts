@@ -99,6 +99,20 @@ router.get('/export-excel/:day', async (req: Request, res: Response) => {
             return res.status(404).json({ error: 'Tidak ada data absen untuk diekspor.' });
         }
 
+        const seenNik = new Set();
+        const dataUnik = dataAbsen.filter((item: any) => {
+            // Jika ada baris kosong atau baris konfigurasi, biarkan lewat
+            if (!item.nik) return true; 
+
+            // Cek apakah NIK ini sudah ada di dalam Set
+            if (seenNik.has(item.nik)) {
+                return false; // BUANG! Ini data double
+            } else {
+                seenNik.add(item.nik); // SIMPAN dan ingat NIK ini
+                return true;
+            }
+        });
+
         // 3. Setup ExcelJS & Load Template
         const workbook = new ExcelJS.Workbook();
         // PENTING: Sesuaikan path ini mengarah ke file Template Excel Anda (Form_Absen.xlsx)
@@ -131,7 +145,7 @@ router.get('/export-excel/:day', async (req: Request, res: Response) => {
         // =========================================================
         // 5. LOOPING ISI DATA KE DALAM TABEL
         // =========================================================
-        dataAbsen.slice(1).forEach((item: any, index: number) => {
+        dataUnik.slice(1).forEach((item: any, index: number) => {
             const row = worksheet.getRow(currentRow);
 
             const nik = item.nik || '';
