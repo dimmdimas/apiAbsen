@@ -281,6 +281,8 @@ router.get('/export-excel/:day', async (req: Request, res: Response) => {
         // =========================================================
         // 6. PROSES FOOTER (ANTI-UNDEFINED)
         // =========================================================
+        let batasAkhirCetak = currentRow - 1;
+
         const fPath = path.join(__dirname, '../../src/templates/Footer_Form_Absen.xlsx');
         if (fs.existsSync(fPath)) {
             try {
@@ -294,6 +296,8 @@ router.get('/export-excel/:day', async (req: Request, res: Response) => {
                     fWs.eachRow({ includeEmpty: true }, (fRow, rNum) => {
                         const targetRowNumber = fStart + (rNum - 1);
                         const tRow = worksheet.getRow(targetRowNumber);
+
+                        batasAkhirCetak = targetRowNumber;
 
                         if (fRow.height) tRow.height = fRow.height;
 
@@ -347,8 +351,7 @@ router.get('/export-excel/:day', async (req: Request, res: Response) => {
             }
         }
 
-        const barisTerakhir = worksheet.rowCount;
-        worksheet.pageSetup.printArea = `A1:J${barisTerakhir}`;
+        worksheet.pageSetup.printArea = `A1:J${batasAkhirCetak}`;
         worksheet.views = [
             { state: 'normal', style: 'pageBreakPreview' }
         ];
