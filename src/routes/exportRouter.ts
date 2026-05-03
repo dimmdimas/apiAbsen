@@ -347,6 +347,12 @@ router.get('/export-excel/:day', async (req: Request, res: Response) => {
             }
         }
 
+        const barisTerakhir = worksheet.rowCount;
+        worksheet.pageSetup.printArea = `A1:J${barisTerakhir}`;
+        worksheet.views = [
+            { state: 'normal', style: 'pageBreakPreview' }
+        ];
+
         // =========================================================
         // 7. KIRIM RESPONSE KE BROWSER
         // =========================================================
