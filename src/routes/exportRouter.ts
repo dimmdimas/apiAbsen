@@ -94,23 +94,55 @@ router.get('/export-excel/:day', async (req: Request, res: Response) => {
         else return res.status(400).json({ error: 'Parameter hari tidak valid' });
 
         // 2. Ambil data dari database (Diurutkan berdasarkan nama)
-        const dataAbsen = await SelectedModel.find().sort({ jabatan: 1,nik: 1 });
+        const dataAbsen = await SelectedModel.find().sort({ jabatan: 1, nik: 1 });
         if (!dataAbsen || dataAbsen.length === 0) {
             return res.status(404).json({ error: 'Tidak ada data absen untuk diekspor.' });
         }
 
+        const nikOSH = req.query.nikOSH as string;
+        const nikManager = req.query.nikManager as string;
+        const nikHRD = req.query.nikHRD as string;
+
+        let ttdOSH = '', namaOSH = '';
+        let ttdManager = '', namaManager = '';
+        let ttdHRD = '', namaHRD = '';
+
         const seenNik = new Set();
         const dataUnik = dataAbsen.filter((item: any) => {
-            // Jika ada baris kosong atau baris konfigurasi, biarkan lewat
-            if (!item.nik) return true; 
+            if (!item.nik) return true;
 
-            // Cek apakah NIK ini sudah ada di dalam Set
-            if (seenNik.has(item.nik)) {
-                return false; // BUANG! Ini data double
-            } else {
-                seenNik.add(item.nik); // SIMPAN dan ingat NIK ini
+            // LOGIKA OSH
+            if (item.nik === nikOSH) {
+                ttdOSH = item.tandaTangan;
+                namaOSH = item.nama;
+
+                // Cek apakah mode Hanya Approval (Jam 00:00)
+                const isOnlyApproval = item.startJam === '00' && item.endJam === '00';
+                if (isOnlyApproval) return false;
+
+                if (seenNik.has(item.nik)) return false;
+                seenNik.add(item.nik);
                 return true;
             }
+
+            // LOGIKA MANAGER (Hanya ambil TTD & Nama, sembunyikan dari tabel)
+            if (item.nik === nikManager) {
+                ttdManager = item.tandaTangan;
+                namaManager = item.nama;
+                return false;
+            }
+
+            // LOGIKA HRD (Hanya ambil TTD & Nama, sembunyikan dari tabel)
+            if (item.nik === nikHRD) {
+                ttdHRD = item.tandaTangan;
+                namaHRD = item.nama;
+                return false;
+            }
+
+            // LOGIKA KARYAWAN BIASA
+            if (seenNik.has(item.nik)) return false;
+            seenNik.add(item.nik);
+            return true;
         });
 
         // 3. Setup ExcelJS & Load Template
@@ -176,12 +208,12 @@ router.get('/export-excel/:day', async (req: Request, res: Response) => {
                 mergedCell.alignment = { vertical: 'middle', horizontal: 'center' };
                 // Opsional: Buat teks tebal / miring
                 mergedCell.font = { italic: true, bold: true };
-                
+
             } else {
                 // JIKA IKUT LEMBUR: Tulis jam seperti biasa
                 row.getCell(5).value = waktuMulai;
                 row.getCell(6).value = waktuSelesai;
-                
+
                 const selisihJam = hitungTotalJam(waktuMulai, waktuSelesai);
                 row.getCell(7).value = selisihJam;
 
@@ -351,6 +383,41 @@ router.get('/export-excel/:day', async (req: Request, res: Response) => {
             }
         }
 
+        // =========================================================
+        // BAGIAN 2 YANG DITAMBAHKAN: PASANG TTD & NAMA DI FOOTER
+        // =========================================================
+        const pasangTTDDanNama = (
+            base64Data: string, nama: string,
+            colIndex: number, rowTemplateTTD: number, rowTemplateNama: number
+        ) => {
+            // 1. Pasang Tanda Tangan
+            if (base64Data && base64Data.includes('base64')) {
+                const cleanBase64 = base64Data.replace(/^data:image\/\w+;base64,/, "");
+                const imageId = workbook.addImage({ base64: cleanBase64, extension: 'png' });
+
+                // Kita gunakan currentRow sebagai patokan baris awal footer
+                worksheet.addImage(imageId, {
+                    tl: { col: colIndex, row: currentRow + rowTemplateTTD - 2 } as any,
+                    ext: { width: 100, height: 50 },
+                    editAs: 'oneCell'
+                });
+            }
+
+            // 2. Pasang Nama
+            if (nama) {
+                const cellNama = worksheet.getRow(currentRow + rowTemplateNama - 1).getCell(colIndex + 1);
+                cellNama.value = nama;
+                cellNama.font = { bold: true, underline: true };
+                cellNama.alignment = { horizontal: 'center' };
+            }
+        };
+
+        // EKSEKUSI: (Sesuai koordinat baris Excel Anda)
+        pasangTTDDanNama(ttdOSH, namaOSH, 0, 7, 8);      // OSH di Kolom A (0), Baris 7 & 8
+        pasangTTDDanNama(ttdManager, namaManager, 5, 7, 8); // Manager di Kolom F (5), Baris 7 & 8
+        pasangTTDDanNama(ttdHRD, namaHRD, 2, 11, 12);    // HRD di Kolom C (2), Baris 11 & 12
+        // =========================================================
+
         worksheet.pageSetup.printArea = `A1:J${batasAkhirCetak}`;
         worksheet.views = [
             { state: 'normal', style: 'pageBreakPreview' }
@@ -361,7 +428,7 @@ router.get('/export-excel/:day', async (req: Request, res: Response) => {
         // =========================================================
         res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
         res.setHeader('Content-Disposition', `attachment; filename=Laporan_Lembur_${tanggalDatabase}.xlsx`);
-        
+
         // --- TAMBAHKAN BARIS INI AGAR FRONTEND BISA BACA NAMA FILE ---
         res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition');
 
