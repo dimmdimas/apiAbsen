@@ -390,36 +390,38 @@ router.get('/export-excel/:day', async (req: Request, res: Response) => {
             base64Data: string, nama: string,
             colIndex: number, rowTemplateTTD: number, rowTemplateNama: number
         ) => {
-            // 1. Pasang Tanda Tangan
             if (base64Data && base64Data.includes('base64')) {
                 const cleanBase64 = base64Data.replace(/^data:image\/\w+;base64,/, "");
                 const imageBuffer = Buffer.from(cleanBase64, 'base64');
 
-                // Ambil ukuran asli gambar (pixel)
                 const dimensions = imageSize(imageBuffer);
                 const originalWidth = dimensions.width || 1;
                 const originalHeight = dimensions.height || 1;
 
-                // Tentukan Tinggi target (misal 50)
-                // Kita gunakan 45 agar ada sedikit ruang (padding) di dalam baris yang tingginya 50
-                const targetHeight = 45;
+                // --- LOGIKA KONVERSI ---
+                // 1 Point = 1.3333 Pixels
+                const pointToPixel = 96 / 72;
 
-                // HITUNG LEBAR PROPORSIONAL: (Lebar Asli / Tinggi Asli) * Tinggi Target
-                const targetWidth = (originalWidth / originalHeight) * targetHeight;
+                // Kita ingin tinggi gambar 48 point (agar masuk di baris tinggi 50)
+                // 48 point aslinya adalah 1.69 cm di Excel
+                const targetHeightInPoints = 48;
+                const targetHeightInPixels = targetHeightInPoints * pointToPixel; // Hasilnya ~64px
+
+                // Hitung lebar proporsional dalam pixel
+                const targetWidthInPixels = (originalWidth / originalHeight) * targetHeightInPixels;
 
                 const imageId = workbook.addImage({ base64: cleanBase64, extension: 'png' });
 
-                // Set Tinggi Baris di Excel menjadi 50
+                // Set tinggi baris tetap 50 points
                 const rowTTD = worksheet.getRow(currentRow + rowTemplateTTD - 1);
                 rowTTD.height = 50;
 
-                // Masukkan Gambar
                 worksheet.addImage(imageId, {
                     tl: {
-                        col: colIndex + 0.1, // sedikit offset agar tidak menempel garis cell
-                        row: currentRow + rowTemplateTTD - 2 + 0.05 // offset vertikal agar center
+                        col: colIndex + 0.1,
+                        row: currentRow + rowTemplateTTD - 2 + 0.02 // sedikit offset vertikal
                     } as any,
-                    ext: { width: targetWidth, height: targetHeight },
+                    ext: { width: targetWidthInPixels, height: targetHeightInPixels },
                     editAs: 'oneCell'
                 });
             }
@@ -430,7 +432,7 @@ router.get('/export-excel/:day', async (req: Request, res: Response) => {
                 const cellNama = rowNama.getCell(colIndex + 1);
                 cellNama.value = nama;
                 cellNama.font = { bold: false, underline: false };
-                cellNama.alignment = { horizontal: 'right', vertical: 'middle' };
+                cellNama.alignment = { horizontal: 'left', vertical: 'middle' };
             }
         };
 
