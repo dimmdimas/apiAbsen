@@ -393,22 +393,44 @@ router.get('/export-excel/:day', async (req: Request, res: Response) => {
             // 1. Pasang Tanda Tangan
             if (base64Data && base64Data.includes('base64')) {
                 const cleanBase64 = base64Data.replace(/^data:image\/\w+;base64,/, "");
+                const imageBuffer = Buffer.from(cleanBase64, 'base64');
+
+                // Ambil ukuran asli gambar (pixel)
+                const dimensions = imageSize(imageBuffer);
+                const originalWidth = dimensions.width || 1;
+                const originalHeight = dimensions.height || 1;
+
+                // Tentukan Tinggi target (misal 50)
+                // Kita gunakan 45 agar ada sedikit ruang (padding) di dalam baris yang tingginya 50
+                const targetHeight = 45;
+
+                // HITUNG LEBAR PROPORSIONAL: (Lebar Asli / Tinggi Asli) * Tinggi Target
+                const targetWidth = (originalWidth / originalHeight) * targetHeight;
+
                 const imageId = workbook.addImage({ base64: cleanBase64, extension: 'png' });
 
-                // Kita gunakan currentRow sebagai patokan baris awal footer
+                // Set Tinggi Baris di Excel menjadi 50
+                const rowTTD = worksheet.getRow(currentRow + rowTemplateTTD - 1);
+                rowTTD.height = 50;
+
+                // Masukkan Gambar
                 worksheet.addImage(imageId, {
-                    tl: { col: colIndex, row: currentRow + rowTemplateTTD - 2 } as any,
-                    ext: { width: 100, height: 50 },
+                    tl: {
+                        col: colIndex + 0.1, // sedikit offset agar tidak menempel garis cell
+                        row: currentRow + rowTemplateTTD - 2 + 0.05 // offset vertikal agar center
+                    } as any,
+                    ext: { width: targetWidth, height: targetHeight },
                     editAs: 'oneCell'
                 });
             }
 
-            // 2. Pasang Nama
+            // 2. Pasang Nama (Tetap seperti logika Anda)
             if (nama) {
-                const cellNama = worksheet.getRow(currentRow + rowTemplateNama - 1).getCell(colIndex + 1);
+                const rowNama = worksheet.getRow(currentRow + rowTemplateNama - 1);
+                const cellNama = rowNama.getCell(colIndex + 1);
                 cellNama.value = nama;
-                cellNama.font = { bold: true, underline: true };
-                cellNama.alignment = { horizontal: 'center' };
+                cellNama.font = { bold: false, underline: false };
+                cellNama.alignment = { horizontal: 'right', vertical: 'middle' };
             }
         };
 
