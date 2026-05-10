@@ -95,4 +95,41 @@ router.get('/monitoring/status', async (req, res) => {
     }
 });
 
+// router get khusus untuk widget monitoring
+router.get('/widget-summary/:day', async (req: Request, res: Response) => {
+    try {
+        const { day } = req.params;
+        const SelectedModel = day === 'day1' ? Day1 : Day2;
+        
+        // Asumsi total karyawan tetap, misal 130
+        const TOTAL_KARYAWAN = 130; 
+        
+        const dataAbsen = await SelectedModel.find();
+        
+        let hadir = 0;
+        let tidakIkut = 0;
+
+        dataAbsen.forEach(item => {
+            if (item.startJam === '00' && item.endJam === '00') {
+                tidakIkut++;
+            } else {
+                hadir++;
+            }
+        });
+
+        const belumAbsen = TOTAL_KARYAWAN - (hadir + tidakIkut);
+
+        // Hanya kirim angka yang dibutuhkan widget
+        res.json({
+            hadir,
+            tidakIkut,
+            belumAbsen,
+            terakhirUpdate: new Date().toISOString()
+        });
+
+    } catch (error) {
+        res.status(500).json({ error: 'Gagal memuat ringkasan' });
+    }
+});
+
 export default router;
