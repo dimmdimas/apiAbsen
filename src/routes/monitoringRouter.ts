@@ -95,6 +95,28 @@ router.get('/monitoring/status', async (req, res) => {
     }
 });
 
+// Contoh jika menggunakan Mongoose di backend Express.js Anda
+router.get('/api/cek-wajib-absen/:nik', async (req, res) => {
+  try {
+    const nikParam = req.params.nik;
+    
+    // Cari NIK di dalam collection list_users
+    // (Pastikan Anda sudah import/define model ListUsers)
+    const userWajib = await ListUser.findOne({ nik: nikParam });
+    
+    if (userWajib) {
+      // Jika NIK ada di list_users
+      return res.status(200).json({ status: true, message: "User diizinkan" });
+    } else {
+      // Jika NIK TIDAK ADA di list_users
+      return res.status(403).json({ status: false, message: "NIK tidak terdaftar dalam jadwal lembur." });
+    }
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: "Terjadi kesalahan server" });
+  }
+});
+
 // router get khusus untuk widget monitoring
 router.get('/widget-summary/:day', async (req: Request, res: Response) => {
     try {
