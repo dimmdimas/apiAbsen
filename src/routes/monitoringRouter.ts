@@ -96,7 +96,7 @@ router.get('/monitoring/status', async (req, res) => {
 });
 
 // Contoh jika menggunakan Mongoose di backend Express.js Anda
-router.get('/api/cek-wajib-absen/:nik', async (req, res) => {
+router.get('/cek-wajib-absen/:nik', async (req, res) => {
   try {
     const nikParam = req.params.nik;
     
