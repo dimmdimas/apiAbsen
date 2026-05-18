@@ -1,4 +1,4 @@
-import express from 'express';
+import express , { Request, Response }from 'express';
 // Sesuaikan import model kamu:
 import { Day1, Day2 } from '../models/data.js';
 import { ListUser } from '../models/listUser.js';
@@ -99,18 +99,28 @@ router.get('/monitoring/status', async (req, res) => {
 router.get('/widget-summary/:day', async (req: Request, res: Response) => {
     try {
         const { day } = req.params;
-        const SelectedModel = day === 'day1' ? Day1 : Day2;
+        
+        let SelectedModel;
+        if (day === 'day1') SelectedModel = Day1;
+        else if (day === 'day2') SelectedModel = Day2;
+        else return res.status(400).json({ error: 'Parameter hari tidak valid' });
         
         // Asumsi total karyawan tetap, misal 130
         const TOTAL_KARYAWAN = 130; 
         
-        const dataAbsen = await SelectedModel.find();
+        // 2. Gunakan .lean() agar TypeScript tidak cerewet dengan format Mongoose Document
+        const dataAbsen = await SelectedModel.find().lean();
         
         let hadir = 0;
         let tidakIkut = 0;
 
-        dataAbsen.forEach(item => {
-            if (item.startJam === '00' && item.endJam === '00') {
+        // 3. Gunakan (item: any) sebagai jalan pintas aman untuk membaca objek JSON dari database
+        dataAbsen.forEach((item: any) => {
+            const waktuMulai = item.waktuMulai || '';
+            const waktuSelesai = item.waktuSelesai || '';
+
+            // Cek string "00:00" sesuai format yang tersimpan di database Mongoose Anda
+            if (waktuMulai.startsWith('00:00') && waktuSelesai.startsWith('00:00')) {
                 tidakIkut++;
             } else {
                 hadir++;
@@ -119,8 +129,8 @@ router.get('/widget-summary/:day', async (req: Request, res: Response) => {
 
         const belumAbsen = TOTAL_KARYAWAN - (hadir + tidakIkut);
 
-        // Hanya kirim angka yang dibutuhkan widget
-        res.json({
+        // 4. Gunakan return untuk mengakhiri eksekusi dengan benar
+        return res.json({
             hadir,
             tidakIkut,
             belumAbsen,
@@ -128,7 +138,8 @@ router.get('/widget-summary/:day', async (req: Request, res: Response) => {
         });
 
     } catch (error) {
-        res.status(500).json({ error: 'Gagal memuat ringkasan' });
+        console.error("Error pada widget-summary:", error);
+        return res.status(500).json({ error: 'Gagal memuat ringkasan' });
     }
 });
 
