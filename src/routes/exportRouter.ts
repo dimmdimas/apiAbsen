@@ -116,13 +116,21 @@ router.get('/export-excel/:day', async (req: Request, res: Response) => {
                 ttdOSH = item.tandaTangan;
                 namaOSH = item.nama;
 
-                // --- UBAH BAGIAN INI ---
-                // Cek dari properti boolean isApprovalMode (Prioritas utama) ATAU dari jam 00:00
-                const isOnlyApproval = item.isApprovalMode === true || (item.startJam === '00' && item.endJam === '00');
+                // --- PERBAIKAN LOGIKA PENGECEKAN ---
+                const waktuMulaiDB = item.waktuMulai || '';
+                const waktuSelesaiDB = item.waktuSelesai || '';
 
-                // Jika dia mode approval, jangan masukkan ke tabel Excel (return false)
-                if (isOnlyApproval) return false;
-                // -----------------------
+                // Cek apakah isApprovalMode true, ATAU waktu mulainya diawali '00:00'
+                const isOnlyApproval = 
+                    item.isApprovalMode === true || 
+                    (waktuMulaiDB.startsWith('00:00') && waktuSelesaiDB.startsWith('00:00')) ||
+                    (item.startJam === '00' && item.endJam === '00');
+                
+                // Jika dia mode approval atau jam 00:00, TENDANG dari tabel (return false)
+                if (isOnlyApproval) {
+                    return false; 
+                }
+                // -----------------------------------
 
                 if (seenNik.has(item.nik)) return false;
                 seenNik.add(item.nik);
@@ -442,13 +450,14 @@ router.get('/export-excel/:day', async (req: Request, res: Response) => {
                 cellNama.alignment = { horizontal: 'left', vertical: 'middle' };
             }
 
-            // 3. PASANG JABATAN (Hanya tereksekusi jika parameter jabatan diisi)
+            // 3. PASANG JABATAN (Di baris ke-13)
             if (jabatan && rowTemplateJabatan) {
                 const rowJabatan = worksheet.getRow(currentRow + rowTemplateJabatan - 1);
                 const cellJabatan = rowJabatan.getCell(colIndex + 1);
-
+                
                 cellJabatan.value = jabatan;
-                cellJabatan.font = { bold: false, italic: false };
+                
+                // Format teks jabatan (Bisa diubah jika ingin miring/tebal)
                 cellJabatan.alignment = { horizontal: 'left', vertical: 'middle' };
             }
         };
