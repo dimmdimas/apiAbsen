@@ -105,7 +105,7 @@ router.get('/export-excel/:day', async (req: Request, res: Response) => {
 
         let ttdOSH = '', namaOSH = '';
         let ttdManager = '', namaManager = '';
-        let ttdHRD = '', namaHRD = '';
+        let ttdHRD = '', namaHRD = '', jabatanHRD = '';
 
         const seenNik = new Set();
         const dataUnik = dataAbsen.filter((item: any) => {
@@ -119,7 +119,7 @@ router.get('/export-excel/:day', async (req: Request, res: Response) => {
                 // --- UBAH BAGIAN INI ---
                 // Cek dari properti boolean isApprovalMode (Prioritas utama) ATAU dari jam 00:00
                 const isOnlyApproval = item.isApprovalMode === true || (item.startJam === '00' && item.endJam === '00');
-                
+
                 // Jika dia mode approval, jangan masukkan ke tabel Excel (return false)
                 if (isOnlyApproval) return false;
                 // -----------------------
@@ -140,6 +140,7 @@ router.get('/export-excel/:day', async (req: Request, res: Response) => {
             if (item.nik === nikHRD) {
                 ttdHRD = item.tandaTangan;
                 namaHRD = item.nama;
+                jabatanHRD = item.jabatan;
                 return false; // <-- Ini juga sudah benar
             }
 
@@ -392,7 +393,8 @@ router.get('/export-excel/:day', async (req: Request, res: Response) => {
         // =========================================================
         const pasangTTDDanNama = (
             base64Data: string, nama: string,
-            colIndex: number, rowTemplateTTD: number, rowTemplateNama: number
+            colIndex: number, rowTemplateTTD: number, rowTemplateNama: number,
+            jabatan?: string, rowTemplateJabatan?: number // <-- Parameter opsional ditaruh paling belakang
         ) => {
             if (base64Data && base64Data.includes('base64')) {
                 const cleanBase64 = base64Data.replace(/^data:image\/\w+;base64,/, "");
@@ -438,12 +440,22 @@ router.get('/export-excel/:day', async (req: Request, res: Response) => {
                 cellNama.font = { bold: false, underline: false };
                 cellNama.alignment = { horizontal: 'left', vertical: 'middle' };
             }
+
+            // 3. PASANG JABATAN (Hanya tereksekusi jika parameter jabatan diisi)
+            if (jabatan && rowTemplateJabatan) {
+                const rowJabatan = worksheet.getRow(currentRow + rowTemplateJabatan - 1);
+                const cellJabatan = rowJabatan.getCell(colIndex + 1);
+
+                cellJabatan.value = jabatan;
+                cellJabatan.font = { bold: false, italic: false };
+                cellJabatan.alignment = { horizontal: 'left', vertical: 'middle' };
+            }
         };
 
         // EKSEKUSI: (Sesuai koordinat baris Excel Anda)
         pasangTTDDanNama(ttdOSH, namaOSH, 0, 7, 8);      // OSH di Kolom A (0), Baris 7 & 8
         pasangTTDDanNama(ttdManager, namaManager, 5, 7, 8); // Manager di Kolom F (5), Baris 7 & 8
-        pasangTTDDanNama(ttdHRD, namaHRD, 2, 11, 12);    // HRD di Kolom C (2), Baris 11 & 12
+        pasangTTDDanNama(ttdHRD, namaHRD, 2, 11, 12, jabatanHRD, 13);
         // =========================================================
 
         worksheet.pageSetup.printArea = `A1:J${batasAkhirCetak}`;
