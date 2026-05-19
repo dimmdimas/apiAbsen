@@ -141,6 +141,7 @@ router.get('/export-excel/:day', async (req: Request, res: Response) => {
                 ttdHRD = item.tandaTangan;
                 namaHRD = item.nama;
                 jabatanHRD = item.jabatan;
+                console.log(jabatanHRD)
                 return false; // <-- Ini juga sudah benar
             }
 
