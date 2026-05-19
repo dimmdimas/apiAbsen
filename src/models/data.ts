@@ -11,7 +11,8 @@ const daySchema = new mongoose.Schema({
     waktuSelesai: String,
     createdAt: { type: Date, default: Date.now },
     money: Number,
-    jam16: Boolean
+    jam16: Boolean,
+    isApprovalMode: { type: Boolean, default: false }
 });
 
 export const Day1 = mongoose.model('Day1', daySchema, 'day1');

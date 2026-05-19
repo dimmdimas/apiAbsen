@@ -4,7 +4,7 @@ import { Schema, model } from 'mongoose';
 interface IUser {
   nik: string;
   nama: string;
-  jabatan: string
+  jabatan: string;
 }
 
 const userSchema = new Schema<IUser>({

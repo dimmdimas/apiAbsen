@@ -116,9 +116,13 @@ router.get('/export-excel/:day', async (req: Request, res: Response) => {
                 ttdOSH = item.tandaTangan;
                 namaOSH = item.nama;
 
-                // Cek apakah mode Hanya Approval (Jam 00:00)
-                const isOnlyApproval = item.startJam === '00' && item.endJam === '00';
+                // --- UBAH BAGIAN INI ---
+                // Cek dari properti boolean isApprovalMode (Prioritas utama) ATAU dari jam 00:00
+                const isOnlyApproval = item.isApprovalMode === true || (item.startJam === '00' && item.endJam === '00');
+                
+                // Jika dia mode approval, jangan masukkan ke tabel Excel (return false)
                 if (isOnlyApproval) return false;
+                // -----------------------
 
                 if (seenNik.has(item.nik)) return false;
                 seenNik.add(item.nik);
@@ -129,14 +133,14 @@ router.get('/export-excel/:day', async (req: Request, res: Response) => {
             if (item.nik === nikManager) {
                 ttdManager = item.tandaTangan;
                 namaManager = item.nama;
-                return false;
+                return false; // <-- Ini sudah benar, Manager otomatis disembunyikan dari tabel
             }
 
             // LOGIKA HRD (Hanya ambil TTD & Nama, sembunyikan dari tabel)
             if (item.nik === nikHRD) {
                 ttdHRD = item.tandaTangan;
                 namaHRD = item.nama;
-                return false;
+                return false; // <-- Ini juga sudah benar
             }
 
             // LOGIKA KARYAWAN BIASA
