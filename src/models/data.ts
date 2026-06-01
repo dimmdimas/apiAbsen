@@ -12,6 +12,7 @@ const daySchema = new mongoose.Schema({
     createdAt: { type: Date, default: Date.now },
     money: Number,
     jam16: Boolean,
+    jam12: Boolean,
     isApprovalMode: { type: Boolean, default: false }
 });
 

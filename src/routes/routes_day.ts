@@ -21,7 +21,8 @@ const formatTanggalIndo = (dateStr: string) => {
 //admin
 routerData.post('/day1', async (req: Request, res: Response) => {
     try {
-        const { tanggal, money, jam16 } = req.body
+        // --- TAMBAHKAN jam12 DI SINI ---
+        const { tanggal, money, jam16, jam12 } = req.body 
 
         const tanggalFix = formatTanggalIndo(tanggal);
 
@@ -31,15 +32,17 @@ routerData.post('/day1', async (req: Request, res: Response) => {
             type: 'Date',
             tanggal: tanggalFix,
             money,
-            jam16
+            jam16,
+            jam12 // --- TAMBAHKAN DI SINI ---
         })
 
         res.status(200).json({
-            message: 'Day 1 Berasil direset dan dibuat baru!',
+            message: 'Day 1 Berhasil direset dan dibuat baru!',
             type: 'Date',
             tanggal: tanggalFix,
             money,
-            jam16
+            jam16,
+            jam12 // --- TAMBAHKAN DI SINI ---
         })
     } catch (error) {
         console.error(error);
@@ -50,7 +53,8 @@ routerData.post('/day1', async (req: Request, res: Response) => {
 //admin
 routerData.post('/day2', async (req: Request, res: Response) => {
     try {
-        const { tanggal, money, jam16 } = req.body
+        // --- TAMBAHKAN jam12 DI SINI ---
+        const { tanggal, money, jam16, jam12 } = req.body
 
         const tanggalFix = formatTanggalIndo(tanggal);
 
@@ -59,15 +63,17 @@ routerData.post('/day2', async (req: Request, res: Response) => {
             type: 'Date',
             tanggal: tanggalFix,
             money,
-            jam16
+            jam16,
+            jam12 // --- TAMBAHKAN DI SINI ---
         })
 
         res.status(200).json({
-            message: 'Day 2 Berasil direset dan dibuat baru!',
+            message: 'Day 2 Berhasil direset dan dibuat baru!',
             type: 'Date',
             tanggal: tanggalFix,
             money,
-            jam16
+            jam16,
+            jam12 // --- TAMBAHKAN DI SINI ---
         })
     } catch (error) {
         console.error(error);
@@ -101,7 +107,8 @@ routerData.get('/date', async (req: Request, res: Response) => {
         return res.status(200).json({
             message: 'Berhasil mengambil tanggal',
             tanggal: adminConfig.tanggal,
-            jam16: adminConfig.jam16
+            jam16: adminConfig.jam16,
+            jam12: adminConfig.jam12 // --- TAMBAHKAN DI SINI ---
         });
 
     } catch (error) {
@@ -119,7 +126,8 @@ routerData.post('/absen', async (req: Request, res: Response) => {
             tandaTangan,
             targetDay,
             startJam, startMenit,   // Data Start
-            endJam, endMenit        // Data End
+            endJam, endMenit,       // Data End
+            isApprovalMode          // Data Approval (opsional)
         } = req.body;
 
         let SelectedModel;
@@ -146,8 +154,9 @@ routerData.post('/absen', async (req: Request, res: Response) => {
             nama: nama,
             jabatan: jabatan,
             tandaTangan: tandaTangan,
-            waktuMulai: formatWaktuMulai,     // Simpan hasil gabungan start
-            waktuSelesai: formatWaktuSelesai  // Simpan hasil gabungan end
+            waktuMulai: formatWaktuMulai,     
+            waktuSelesai: formatWaktuSelesai, 
+            isApprovalMode: isApprovalMode || false // Menyimpan mode approval jika dikirim dari frontend
         });
 
         await absenBaru.save();
