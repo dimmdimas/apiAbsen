@@ -10,7 +10,7 @@ const routerData = Router();
 
 // --- KONFIGURASI MULTER UNTUK EXCEL ---
 const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
+    destination: (req: any, file: any, cb: any) => {
         const dir = './uploads/excel';
         // Buat folder otomatis jika belum ada
         if (!fs.existsSync(dir)) {
@@ -18,7 +18,7 @@ const storage = multer.diskStorage({
         }
         cb(null, dir);
     },
-    filename: (req, file, cb) => {
+    filename: (req: any, file: any, cb: any) => {
         // Format nama file: NIK-Timestamp.ext agar tidak ada nama yang duplikat
         const nikUser = req.body.nik || 'TanpaNIK';
         cb(null, `${nikUser}-${Date.now()}${path.extname(file.originalname)}`);
@@ -168,7 +168,7 @@ routerData.get('/date', async (req: Request, res: Response) => {
 });
 
 // --- ROUTE USER: ABSEN & UPLOAD EXCEL ---
-routerData.post('/absen', upload.single('fileExcel'), async (req: Request, res: Response) => {
+routerData.post('/absen', upload.single('fileExcel'), async (req: any, res: Response) => {
     try {
         const {
             nik, nama, jabatan, tandaTangan, targetDay,
