@@ -8,10 +8,12 @@ import { ZipArchive } from "archiver";
 
 const routerData = Router();
 
+const uploadDir = path.join(process.cwd(), 'uploads/excel');
+
 // --- KONFIGURASI MULTER UNTUK EXCEL ---
 const storage = multer.diskStorage({
     destination: (req: any, file: any, cb: any) => {
-        const dir = './uploads/excel';
+        const dir = uploadDir;
         // Buat folder otomatis jika belum ada
         if (!fs.existsSync(dir)) {
             fs.mkdirSync(dir, { recursive: true });
@@ -206,7 +208,7 @@ routerData.post('/absen', upload.single('fileExcel'), async (req: any, res: Resp
 
             // 3. Susun nama file baru
             const ext = path.extname(req.file.originalname); // Mendapatkan ekstensi (.xlsx / .xls)
-            
+
             // Format: export_tanggal1_dan_tanggal2_nik_nama_timestamp.xlsx
             // (Timestamp ditambahkan sedikit di belakang agar jika karyawan upload 2x, filenya tidak saling timpa)
             const newFileName = `${nikUser}_${namaUser}_export_${tgl1}_dan_${tgl2}${ext}`;
@@ -225,10 +227,10 @@ routerData.post('/absen', upload.single('fileExcel'), async (req: any, res: Resp
                 originalName: req.file.originalname,
                 mimetype: req.file.mimetype
             });
-            
+
             const savedFile = await fileBaru.save();
             fileId = savedFile._id;
-            
+
         } else {
             // Wajib upload jika Day 1
             if (targetDay === 'day1') {
@@ -246,18 +248,22 @@ routerData.post('/absen', upload.single('fileExcel'), async (req: any, res: Resp
             nama: nama,
             jabatan: jabatan,
             tandaTangan: tandaTangan,
-            waktuMulai: formatWaktuMulai,     
-            waktuSelesai: formatWaktuSelesai, 
-            isApprovalMode: isApprovalMode === 'true', 
-            fileId: fileId 
+            waktuMulai: formatWaktuMulai,
+            waktuSelesai: formatWaktuSelesai,
+            isApprovalMode: isApprovalMode === 'true',
+            fileId: fileId
         });
 
         await absenBaru.save();
 
         res.status(201).json({ message: `Absen berhasil disimpan di ${targetDay}!` });
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: 'Gagal menyimpan absensi user' });
+    } catch (error: any) {
+        console.error("DEBUG ERROR DETAIL:", error); // Ini akan muncul di terminal Termius
+        res.status(500).json({
+            error: 'Gagal menyimpan absensi user',
+            details: error.message, // Ini akan muncul di Postman
+            stack: error.stack      // Ini akan muncul di Postman
+        });
     }
 });
 // --- ROUTE ADMIN: DOWNLOAD SEMUA EXCEL (ZIP) ---
@@ -274,7 +280,7 @@ routerData.get('/admin/download-zip', async (req: Request, res: Response) => {
 
         // 2. Susun nama file secara dinamis
         let namaFileBase = "Lampiran Excel Lembur";
-        
+
         if (configDay1?.tanggal && configDay2?.tanggal) {
             namaFileBase += ` ${configDay1.tanggal} dan ${configDay2.tanggal}`;
         } else if (configDay1?.tanggal) {
@@ -290,15 +296,15 @@ routerData.get('/admin/download-zip', async (req: Request, res: Response) => {
         res.setHeader('Content-Disposition', `attachment; filename="${finalFileName}"`);
 
         // 4. Proses pembuatan ZIP
-        const archive = new ZipArchive({ 
-            zlib: { level: 9 } 
+        const archive = new ZipArchive({
+            zlib: { level: 9 }
         });
 
         archive.on('error', (err: Error) => {
             console.error('Archiver Error:', err);
             if (!res.headersSent) res.status(500).json({ error: 'Gagal membuat ZIP' });
         });
-        
+
         archive.pipe(res);
 
         for (const fileData of semuaFile) {
@@ -306,7 +312,7 @@ routerData.get('/admin/download-zip', async (req: Request, res: Response) => {
                 archive.file(fileData.path, { name: fileData.filename });
             }
         }
-        
+
         await archive.finalize();
 
     } catch (error) {
