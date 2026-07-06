@@ -278,11 +278,14 @@ routerData.post('/absen', upload.single('fileExcel'), async (req: any, res: Resp
             }
 
             // 2. TENTUKAN FOLDER TUJUAN (uploads/day1 atau uploads/day2)
-            const targetFolder = path.join(process.cwd(), `uploads/${targetDay}`);
+            const baseUploadPath = path.resolve(__dirname, '../../uploads'); // Sesuaikan jumlah ../ agar sampai ke folder uploads
+            const targetFolder = path.join(baseUploadPath, targetDay); // targetDay adalah 'day1' atau 'day2'
 
-            // Buat folder secara otomatis jika belum ada
+            // Pastikan folder day1/day2 benar-benar ada
             if (!fs.existsSync(targetFolder)) {
                 fs.mkdirSync(targetFolder, { recursive: true });
+                // Berikan izin akses folder baru
+                fs.chmodSync(targetFolder, '777');
             }
 
             // 3. SUSUN NAMA FILE BARU
@@ -349,6 +352,7 @@ routerData.post('/absen', upload.single('fileExcel'), async (req: any, res: Resp
             stack: error.stack
         });
     }
+    console.log("SERVER MENGGUNAKAN KODE TERBARU 2026")
 });
 
 // --- ROUTE ADMIN: DOWNLOAD SEMUA EXCEL (ZIP) ---
