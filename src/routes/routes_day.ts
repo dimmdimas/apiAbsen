@@ -236,18 +236,18 @@ routerData.post('/absen', upload.single('fileExcel'), async (req: any, res: Resp
         if (req.file) {
             // 1. BACA ISI EXCEL
             const workbook = xlsx.readFile(req.file.path);
-            const sheetName = workbook.SheetNames[0]; 
+            const sheetName = workbook.SheetNames[0];
             const sheet = workbook.Sheets[sheetName];
-            
+
             // Ambil value dari cell A2 (NIK) dan B2 (Tanggal)
             const excelNikRaw = sheet['A2'] ? String(sheet['A2'].v).trim() : null;
-            const excelDateRaw = sheet['B2'] ? sheet['B2'].v : null; 
-            
+            const excelDateRaw = sheet['B2'] ? sheet['B2'].v : null;
+
             // --- VALIDASI 1: CEK NIK (CELL A2) ---
             if (excelNikRaw !== String(nik).trim()) {
-                if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path); 
-                return res.status(400).json({ 
-                    error: `Salah File! NIK di dalam Excel (${excelNikRaw || 'Kosong'}) tidak sama dengan NIK Anda (${nik}).` 
+                if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+                return res.status(400).json({
+                    error: `Salah File! NIK di dalam Excel (${excelNikRaw || 'Kosong'}) tidak sama dengan NIK Anda (${nik}).`
                 });
             }
 
@@ -257,17 +257,17 @@ routerData.post('/absen', upload.single('fileExcel'), async (req: any, res: Resp
 
             let isDateMatch = false;
             if (excelDate && dbDate) {
-                isDateMatch = (excelDate.getFullYear() === dbDate.getFullYear()) && 
-                              (excelDate.getMonth() === dbDate.getMonth()) && 
-                              (excelDate.getDate() === dbDate.getDate());
+                isDateMatch = (excelDate.getFullYear() === dbDate.getFullYear()) &&
+                    (excelDate.getMonth() === dbDate.getMonth()) &&
+                    (excelDate.getDate() === dbDate.getDate());
             }
 
             if (!isDateMatch) {
                 if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
                 const formatTglExcel = excelDate ? `${excelDate.getDate()}/${excelDate.getMonth() + 1}/${excelDate.getFullYear()}` : 'Kosong/Tidak Terbaca';
-                
-                return res.status(400).json({ 
-                    error: `Validasi Gagal! Tanggal di Excel (${formatTglExcel}) tidak cocok dengan jadwal ${targetDay.toUpperCase()} (${adminConfig.tanggal}).` 
+
+                return res.status(400).json({
+                    error: `Validasi Gagal! Tanggal di Excel (${formatTglExcel}) tidak cocok dengan jadwal ${targetDay.toUpperCase()} (${adminConfig.tanggal}).`
                 });
             }
 
@@ -307,7 +307,8 @@ routerData.post('/absen', upload.single('fileExcel'), async (req: any, res: Resp
 
         } else {
             // Wajib upload
-            return res.status(400).json({ error: `File Excel wajib diupload untuk ${targetDay}!` });
+            const excelDateRaw = sheet['B2'] ? sheet['B2'].v : null;
+            return res.status(400).json({ error: `Validasi Gagal! Tanggal di Excel (${excelDateRaw || 'Kosong'}) tidak cocok dengan jadwal sistem (${adminConfig.tanggal}).` });
         }
 
         // --- LANJUTAN SIMPAN DATA ABSENSI ---
