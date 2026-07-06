@@ -234,6 +234,12 @@ routerData.post('/absen', upload.single('fileExcel'), async (req: any, res: Resp
 
         // --- LOGIKA VALIDASI, PENYIMPANAN DAN RENAME FILE EXCEL ---
         if (req.file) {
+            if (!req.file) {
+                // INI KUNCI UTAMANYA: Langsung blokir jika req.file kosong
+                return res.status(400).json({
+                    error: `Sistem menolak! File Excel gagal dikirim dari aplikasi HP Anda.`
+                });
+            }
             // 1. BACA ISI EXCEL
             const workbook = xlsx.readFile(req.file.path);
             const sheetName = workbook.SheetNames[0];
@@ -307,8 +313,7 @@ routerData.post('/absen', upload.single('fileExcel'), async (req: any, res: Resp
 
         } else {
             // Wajib upload
-            const excelDateRaw = sheet['B2'] ? sheet['B2'].v : null;
-            return res.status(400).json({ error: `Validasi Gagal! Tanggal di Excel (${excelDateRaw || 'Kosong'}) tidak cocok dengan jadwal sistem (${adminConfig.tanggal}).` });
+            return res.status(400).json({ error: `File Excel wajib diupload untuk ${targetDay}!` });
         }
 
         // --- LANJUTAN SIMPAN DATA ABSENSI ---
