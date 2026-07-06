@@ -233,33 +233,42 @@ routerData.post('/absen', upload.single('fileExcel'), async (req: any, res: Resp
         let fileId = null;
 
         // --- LOGIKA VALIDASI, PENYIMPANAN DAN RENAME FILE EXCEL ---
+        // --- LOGIKA VALIDASI, PENYIMPANAN DAN RENAME FILE EXCEL ---
         if (req.file) {
-            // 1. BACA ISI EXCEL & VALIDASI CELL B2
+            // 1. BACA ISI EXCEL
             const workbook = xlsx.readFile(req.file.path);
-            const sheetName = workbook.SheetNames[0];
+            const sheetName = workbook.SheetNames[0]; 
             const sheet = workbook.Sheets[sheetName];
+            
+            // Ambil value dari cell A2 (NIK) dan B2 (Tanggal)
+            const excelNikRaw = sheet['A2'] ? String(sheet['A2'].v).trim() : null;
+            const excelDateRaw = sheet['B2'] ? sheet['B2'].v : null; 
+            
+            // --- VALIDASI 1: CEK NIK (CELL A2) ---
+            if (excelNikRaw !== String(nik).trim()) {
+                if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path); 
+                return res.status(400).json({ 
+                    error: `Salah File! NIK di dalam Excel (${excelNikRaw || 'Kosong'}) tidak sama dengan NIK Anda (${nik}).` 
+                });
+            }
 
-            const excelDateRaw = sheet['B2'] ? sheet['B2'].v : null;
-
+            // --- VALIDASI 2: CEK TANGGAL (CELL B2) ---
             const dbDate = parseCustomDate(adminConfig.tanggal);
             const excelDate = parseCustomDate(excelDateRaw);
 
             let isDateMatch = false;
             if (excelDate && dbDate) {
-                isDateMatch = (excelDate.getFullYear() === dbDate.getFullYear()) &&
-                    (excelDate.getMonth() === dbDate.getMonth()) &&
-                    (excelDate.getDate() === dbDate.getDate());
+                isDateMatch = (excelDate.getFullYear() === dbDate.getFullYear()) && 
+                              (excelDate.getMonth() === dbDate.getMonth()) && 
+                              (excelDate.getDate() === dbDate.getDate());
             }
 
-            // Jika tanggal tidak cocok
             if (!isDateMatch) {
-                if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path); // Hapus file yang salah
-
-                // Ubah format angka seri Excel (cth: 46202) menjadi tanggal yang mudah dibaca manusia (29/6/2026)
+                if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
                 const formatTglExcel = excelDate ? `${excelDate.getDate()}/${excelDate.getMonth() + 1}/${excelDate.getFullYear()}` : 'Kosong/Tidak Terbaca';
-
-                return res.status(400).json({
-                    error: `Validasi Gagal! Tanggal di Excel Anda (${formatTglExcel}) tidak cocok dengan jadwal sistem (${adminConfig.tanggal}).`
+                
+                return res.status(400).json({ 
+                    error: `Validasi Gagal! Tanggal di Excel (${formatTglExcel}) tidak cocok dengan jadwal ${targetDay.toUpperCase()} (${adminConfig.tanggal}).` 
                 });
             }
 
