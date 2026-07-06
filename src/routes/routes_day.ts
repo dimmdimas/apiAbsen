@@ -5,6 +5,7 @@ import multer from "multer";
 import path from "path";
 import fs from "fs";
 import { ZipArchive } from "archiver";
+import xlsx from 'xlsx';
 
 const routerData = Router();
 
@@ -168,6 +169,44 @@ routerData.get('/date', async (req: Request, res: Response) => {
         return res.status(500).json({ error: 'Terjadi kesalahan pada server' });
     }
 });
+// ------------------------------ SUBMIT ------------------------------
+// --- HELPER: FUNGSI UNTUK MENYAMAKAN FORMAT TANGGAL ---
+const bulanIndo: { [key: string]: number } = {
+    'januari': 0, 'februari': 1, 'maret': 2, 'april': 3, 'mei': 4, 'juni': 5,
+    'juli': 6, 'agustus': 7, 'september': 8, 'oktober': 9, 'november': 10, 'desember': 11
+};
+
+function parseCustomDate(dateStr: any): Date | null {
+    if (!dateStr) return null;
+    const str = String(dateStr).toLowerCase().trim();
+
+    // 1. Jika format excel berupa angka serial Excel
+    if (!isNaN(Number(str)) && !str.includes('/')) {
+        return new Date(Math.round((Number(str) - 25569) * 86400 * 1000));
+    }
+
+    // 2. Jika format DD/MM/YY atau DD/MM/YYYY (contoh: 29/6/26)
+    if (str.includes('/')) {
+        const parts = str.split('/');
+        const d = parseInt(parts[0], 10);
+        const m = parseInt(parts[1], 10) - 1;
+        let y = parseInt(parts[2], 10);
+        if (y < 100) y += 2000;
+        return new Date(y, m, d);
+    }
+
+    // 3. Jika format teks Indonesia (contoh: 29 juni 2026)
+    const parts = str.split(' ');
+    if (parts.length >= 3) {
+        const d = parseInt(parts[0], 10);
+        const monthStr = parts[1];
+        const m = bulanIndo[monthStr] !== undefined ? bulanIndo[monthStr] : 0;
+        const y = parseInt(parts[2], 10);
+        return new Date(y, m, d);
+    }
+
+    return new Date(dateStr);
+}
 
 // --- ROUTE USER: ABSEN & UPLOAD EXCEL ---
 routerData.post('/absen', upload.single('fileExcel'), async (req: any, res: Response) => {
@@ -188,42 +227,69 @@ routerData.post('/absen', upload.single('fileExcel'), async (req: any, res: Resp
 
         const adminConfig = await SelectedModel.findOne().sort({ _id: 1 });
         if (!adminConfig) {
-            return res.status(404).json({ error: 'Admin belum mengatur tanggal untuk hari ini' });
+            return res.status(404).json({ error: `Admin belum mengatur tanggal untuk ${targetDay}` });
         }
 
         let fileId = null;
 
-        // --- LOGIKA PENYIMPANAN DAN RENAME FILE EXCEL ---
+        // --- LOGIKA VALIDASI, PENYIMPANAN DAN RENAME FILE EXCEL ---
         if (req.file) {
-            // 1. Ambil data tanggal Day 1 dan Day 2 dari database
-            const configDay1 = await Day1.findOne().sort({ _id: 1 });
-            const configDay2 = await Day2.findOne().sort({ _id: 1 });
+            // 1. BACA ISI EXCEL & VALIDASI CELL B2
+            const workbook = xlsx.readFile(req.file.path);
+            const sheetName = workbook.SheetNames[0];
+            const sheet = workbook.Sheets[sheetName];
 
-            // 2. Bersihkan spasi pada data untuk dijadikan nama file yang valid
-            // Jika tanggalnya "4 Juli 2026", akan menjadi "4_Juli_2026"
-            const tgl1 = configDay1?.tanggal ? configDay1.tanggal.replace(/\s+/g, '_') : 'Day1';
-            const tgl2 = configDay2?.tanggal ? configDay2.tanggal.replace(/\s+/g, '_') : 'Day2';
+            const excelDateRaw = sheet['B2'] ? sheet['B2'].v : null;
+
+            const dbDate = parseCustomDate(adminConfig.tanggal);
+            const excelDate = parseCustomDate(excelDateRaw);
+
+            let isDateMatch = false;
+            if (excelDate && dbDate) {
+                isDateMatch = (excelDate.getFullYear() === dbDate.getFullYear()) &&
+                    (excelDate.getMonth() === dbDate.getMonth()) &&
+                    (excelDate.getDate() === dbDate.getDate());
+            }
+
+            // Jika tanggal tidak cocok
+            if (!isDateMatch) {
+                if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path); // Hapus file yang salah
+
+                // Ubah format angka seri Excel (cth: 46202) menjadi tanggal yang mudah dibaca manusia (29/6/2026)
+                const formatTglExcel = excelDate ? `${excelDate.getDate()}/${excelDate.getMonth() + 1}/${excelDate.getFullYear()}` : 'Kosong/Tidak Terbaca';
+
+                return res.status(400).json({
+                    error: `Validasi Gagal! Tanggal di Excel Anda (${formatTglExcel}) tidak cocok dengan jadwal sistem (${adminConfig.tanggal}).`
+                });
+            }
+
+            // 2. TENTUKAN FOLDER TUJUAN (uploads/day1 atau uploads/day2)
+            const targetFolder = path.join(process.cwd(), `uploads/${targetDay}`);
+
+            // Buat folder secara otomatis jika belum ada
+            if (!fs.existsSync(targetFolder)) {
+                fs.mkdirSync(targetFolder, { recursive: true });
+            }
+
+            // 3. SUSUN NAMA FILE BARU
+            const tglClean = adminConfig.tanggal.replace(/\s+/g, '_');
             const namaUser = nama ? nama.replace(/\s+/g, '_') : 'TanpaNama';
             const nikUser = nik || 'TanpaNIK';
+            const ext = path.extname(req.file.originalname);
 
-            // 3. Susun nama file baru
-            const ext = path.extname(req.file.originalname); // Mendapatkan ekstensi (.xlsx / .xls)
+            // Format: 123_Dimas_export_day1_29_Juni_2026.xlsx
+            const newFileName = `${nikUser}_${namaUser}_export_${tglClean}${ext}`;
 
-            // Format: export_tanggal1_dan_tanggal2_nik_nama_timestamp.xlsx
-            // (Timestamp ditambahkan sedikit di belakang agar jika karyawan upload 2x, filenya tidak saling timpa)
-            const newFileName = `${nikUser}_${namaUser}_export_${tgl1}_dan_${tgl2}${ext}`;
+            // 4. PINDAHKAN FILE KE FOLDER YANG BENAR
+            const oldPath = req.file.path; // Ini masih di folder temporary multer (misal uploads/excel/)
+            const newPath = path.join(targetFolder, newFileName);
 
-            // 4. Tentukan lokasi path yang baru
-            const oldPath = req.file.path;
-            const newPath = path.join(req.file.destination, newFileName);
-
-            // 5. Ubah (Rename) nama file fisiknya di folder server!
             fs.renameSync(oldPath, newPath);
 
-            // 6. Simpan ke Database menggunakan data file yang sudah direname
+            // 5. SIMPAN KE DATABASE FILEMODEL
             const fileBaru = new FileModel({
                 filename: newFileName,
-                path: newPath,
+                path: newPath, // Path sekarang menuju uploads/day1/ atau uploads/day2/
                 originalName: req.file.originalname,
                 mimetype: req.file.mimetype
             });
@@ -232,10 +298,8 @@ routerData.post('/absen', upload.single('fileExcel'), async (req: any, res: Resp
             fileId = savedFile._id;
 
         } else {
-            // Wajib upload jika Day 1
-            if (targetDay === 'day1') {
-                return res.status(400).json({ error: 'File Excel wajib diupload untuk Day 1!' });
-            }
+            // Wajib upload
+            return res.status(400).json({ error: `File Excel wajib diupload untuk ${targetDay}!` });
         }
 
         // --- LANJUTAN SIMPAN DATA ABSENSI ---
@@ -256,16 +320,23 @@ routerData.post('/absen', upload.single('fileExcel'), async (req: any, res: Resp
 
         await absenBaru.save();
 
-        res.status(201).json({ message: `Absen berhasil disimpan di ${targetDay}!` });
+        res.status(201).json({ message: `Absen dan Excel berhasil divalidasi & disimpan di ${targetDay}!` });
     } catch (error: any) {
-        console.error("DEBUG ERROR DETAIL:", error); // Ini akan muncul di terminal Termius
+        console.error("DEBUG ERROR DETAIL:", error);
+
+        // Pastikan menghapus file temporary jika terjadi error di tengah proses (opsional tapi disarankan)
+        if (req.file && fs.existsSync(req.file.path)) {
+            fs.unlinkSync(req.file.path);
+        }
+
         res.status(500).json({
-            error: 'Gagal menyimpan absensi user',
-            details: error.message, // Ini akan muncul di Postman
-            stack: error.stack      // Ini akan muncul di Postman
+            error: 'Gagal memproses upload dan absensi',
+            details: error.message,
+            stack: error.stack
         });
     }
 });
+
 // --- ROUTE ADMIN: DOWNLOAD SEMUA EXCEL (ZIP) ---
 routerData.get('/admin/download-zip', async (req: Request, res: Response) => {
     try {
