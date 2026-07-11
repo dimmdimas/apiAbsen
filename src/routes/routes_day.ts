@@ -295,43 +295,79 @@ routerData.post('/absen', async (req: Request, res: Response) => {
 // --- ROUTE ADMIN: DOWNLOAD SEMUA EXCEL (ZIP) ---
 routerData.get('/admin/download-zip', async (req: Request, res: Response) => {
     try {
+        const targetDay = req.query.targetDay as string;
+
+        if (!targetDay || (targetDay !== 'day1' && targetDay !== 'day2')) {
+            return res.status(400).json({ error: 'Harap sertakan ?targetDay=day1 atau ?targetDay=day2 di URL' });
+        }
+
         const semuaFile = await FileModel.find({});
-        if (semuaFile.length === 0) {
-            return res.status(404).json({ error: 'Belum ada file Excel yang diupload.' });
+        // 1. Filter yang lebih longgar: asalkan ada kata "day1" atau "day2" di path-nya
+        const filesDipilih = semuaFile.filter(file => file.path.includes(targetDay));
+
+        if (filesDipilih.length === 0) {
+            return res.status(404).json({ error: `Data file untuk ${targetDay.toUpperCase()} belum ada di database.` });
         }
 
-        const configDay1 = await Day1.findOne().sort({ _id: 1 });
-        const configDay2 = await Day2.findOne().sort({ _id: 1 });
+        let configDay = null;
+        if (targetDay === 'day1') configDay = await Day1.findOne().sort({ _id: 1 });
+        if (targetDay === 'day2') configDay = await Day2.findOne().sort({ _id: 1 });
 
-        let namaFileBase = "Lampiran Excel Lembur";
-        if (configDay1?.tanggal && configDay2?.tanggal) {
-            namaFileBase += ` ${configDay1.tanggal} dan ${configDay2.tanggal}`;
-        } else if (configDay1?.tanggal) {
-            namaFileBase += ` ${configDay1.tanggal}`;
-        } else if (configDay2?.tanggal) {
-            namaFileBase += ` ${configDay2.tanggal}`;
-        }
-
-        const finalFileName = `${namaFileBase}.zip`;
+        const tanggalTeks = configDay?.tanggal ? ` ${configDay.tanggal}` : '';
+        const finalFileName = `Lembur_${targetDay.toUpperCase()}${tanggalTeks}.zip`;
 
         res.setHeader('Content-Type', 'application/zip');
         res.setHeader('Content-Disposition', `attachment; filename="${finalFileName}"`);
 
-        const archive = new ZipArchive({
-            zlib: { level: 9 }, // Sets the compression level.
+        const archive = new (ZipArchive as any)({
+            zlib: { level: 9 }, 
+        });
+
+        res.on("close", function () {
+            console.log(archive.pointer() + " total bytes berhasil dibungkus!");
         });
 
         archive.on('error', (err: Error) => {
-            console.error('Archiver Error:', err);
+            console.error('Archive Error:', err);
             if (!res.headersSent) res.status(500).json({ error: 'Gagal membuat ZIP' });
         });
 
         archive.pipe(res);
 
-        for (const fileData of semuaFile) {
-            if (fs.existsSync(fileData.path)) {
-                archive.file(fileData.path, { name: fileData.filename });
+        let adaFileTerbungkus = false;
+
+        for (const fileData of filesDipilih) {
+            // 1. "Cuci" teks path dari karakter gaib, spasi berlebih, dan enter
+            const rawPath = String(fileData.path);
+            const cleanPath = rawPath.replace(/[\r\n]+/g, '').trim();
+            
+            // 2. Pastikan path selalu absolute mengarah ke root project Anda
+            let realPath = cleanPath;
+            if (!path.isAbsolute(cleanPath)) {
+                // Paksa agar selalu berpatokan pada folder apiAbsen, bukan dist/
+                realPath = path.join('/home/tomat/apiAbsen', cleanPath);
             }
+
+            // Gunakan tanda kutip ganda di log agar kita bisa melihat jika ada spasi nyasar!
+            console.log(`[DEBUG] Mencoba akses: "${realPath}"`);
+
+            try {
+                // 3. Paksa Node mengecek apakah dia punya izin BACA (Read) file ini
+                fs.accessSync(realPath, fs.constants.R_OK);
+                
+                // Jika lolos tanpa masuk catch, berarti file ada dan bisa dibaca!
+                archive.file(realPath, { name: fileData.filename });
+                adaFileTerbungkus = true;
+                console.log(`[DEBUG] ✅ Berhasil dibungkus: ${fileData.filename}`);
+                
+            } catch (err: any) {
+                // 4. Tangkap error ASLI dari mesin Linux
+                console.log(`[DEBUG] ❌ Gagal akses file. Error Sistem: ${err.message}`);
+            }
+        }
+
+        if (!adaFileTerbungkus) {
+            return res.status(404).json({ error: 'Data ada di database, tapi semua file fisik ditolak oleh server (cek log PM2).' });
         }
 
         await archive.finalize();
