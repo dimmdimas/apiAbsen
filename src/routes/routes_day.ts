@@ -314,7 +314,7 @@ routerData.get('/admin/download-zip', async (req: Request, res: Response) => {
         if (targetDay === 'day2') configDay = await Day2.findOne().sort({ _id: 1 });
 
         const tanggalTeks = configDay?.tanggal ? ` ${configDay.tanggal}` : '';
-        const finalFileName = `Lembur_${targetDay.toUpperCase()}${tanggalTeks}.zip`;
+        const finalFileName = `Lampiran Lembur_${tanggalTeks}.zip`;
 
         res.setHeader('Content-Type', 'application/zip');
         res.setHeader('Content-Disposition', `attachment; filename="${finalFileName}"`);
