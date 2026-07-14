@@ -338,23 +338,17 @@ routerData.get('/admin/download-zip', async (req: Request, res: Response) => {
         }
 
         let adaFileTerproses = false;
+        
+        // 1. BUAT WADAH PENAMPUNG DATA
+        let semuaDataBaris: any[] = []; 
 
-        // 3. Loop semua file Excel karyawan yang diupload
         for (const fileData of filesDipilih) {
-            // 1. Bersihkan path dari backslash (Windows) dan ambil NAMA FILE-nya saja
             const rawPath = String(fileData.path).replace(/\\/g, '/');
             const fileNameFromDB = path.basename(rawPath).trim();
-            
-            // 2. Tembak langsung ke folder fisiknya berdasarkan targetDay
-            const folderFisik = path.join('/home/tomat/apiAbsen', 'uploads', targetDay);
-
-            console.log(`[DEBUG] Mencari file "${fileNameFromDB}" di dalam "${folderFisik}"`);
+            const folderFisik = path.join(process.cwd(), 'uploads', targetDay);
 
             if (fs.existsSync(folderFisik)) {
-                // 3. Ambil daftar SEMUA file yang benar-benar ada di Linux saat ini
                 const daftarFileFisik = fs.readdirSync(folderFisik);
-
-                // 4. Cari file yang namanya cocok (mengabaikan huruf besar/kecil & spasi gaib)
                 const fileDitemukan = daftarFileFisik.find(f => 
                     f.toLowerCase().includes(fileNameFromDB.toLowerCase()) || 
                     fileNameFromDB.toLowerCase().includes(f.toLowerCase())
@@ -373,34 +367,64 @@ routerData.get('/admin/download-zip', async (req: Request, res: Response) => {
                             for (let i = 2; i <= rowCount; i++) {
                                 const row = wsKaryawan.getRow(i);
                                 if (row.hasValues) {
-                                    worksheetTemplate.addRow(row.values);
+                                    // BUKAN DI-ADD KE EXCEL, TAPI DIMASUKKAN KE ARRAY DULU
+                                    semuaDataBaris.push(row.values); 
                                 }
                             }
                             adaFileTerproses = true;
-                            console.log(`[DEBUG] ✅ Berhasil menggabungkan: ${fileDitemukan}`);
                         }
                     } catch (err: any) {
                         console.log(`[DEBUG] ❌ Gagal memproses excel: ${err.message}`);
                     }
-                } else {
-                    console.log(`[DEBUG] ❌ File fisik tidak ditemukan di dalam folder: ${fileNameFromDB}`);
                 }
-            } else {
-                 console.log(`[DEBUG] ❌ Folder fisik tidak ditemukan: ${folderFisik}`);
             }
         }
 
-        if (!adaFileTerproses) {
-            return res.status(404).json({ error: 'Data ada di database, tapi semua file fisik gagal diproses atau hilang.' });
+        if (!adaFileTerproses || semuaDataBaris.length === 0) {
+            return res.status(404).json({ error: 'Data gagal diproses atau semua Excel kosong.' });
         }
 
-        // 4. Kirim file gabungan langsung ke browser sebagai Excel (.xlsx)
+        // 2. FUNGSI BANTUAN UNTUK MENGAMBIL NILAI SEL DENGAN AMAN
+        const getCellValue = (val: any) => {
+            if (val === null || val === undefined) return '';
+            if (val instanceof Date) return val.getTime().toString(); // Urutkan tanggal
+            if (typeof val === 'object') return (val.result || val.text || '').toString();
+            return val.toString();
+        };
+
+        // 3. PROSES SORTING (KOLOM B DULU, JIKA SAMA BARU KOLOM A)
+        semuaDataBaris.sort((baris1, baris2) => {
+            // Di exceljs, index array selalu dimulai dari 1 (0 selalu kosong)
+            // Kolom A = index 1, Kolom B = index 2
+            const valA1 = getCellValue(baris1[1]);
+            const valA2 = getCellValue(baris2[1]);
+            const valB1 = getCellValue(baris1[2]);
+            const valB2 = getCellValue(baris2[2]);
+
+            // Urutkan berdasarkan Kolom B (A - Z)
+            if (valB1 < valB2) return -1;
+            if (valB1 > valB2) return 1;
+
+            // Jika Kolom B nilainya sama, urutkan berdasarkan Kolom A (A - Z)
+            if (valA1 < valA2) return -1;
+            if (valA1 > valA2) return 1;
+
+            return 0;
+        });
+
+        // 4. MASUKKAN DATA YANG SUDAH RAPI KE DALAM TEMPLATE
+        for (const baris of semuaDataBaris) {
+            worksheetTemplate.addRow(baris);
+        }
+
+        // 5. BUNGKUS DAN KIRIM KE BROWSER SEPERTI BIASA
+        const buffer = await workbookTemplate.xlsx.writeBuffer();
+
         res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
         res.setHeader('Content-Disposition', `attachment; filename="${finalFileName}"`);
+        res.setHeader('Content-Length', buffer.byteLength);
 
-        // Tulis workbook ke response stream
-        await workbookTemplate.xlsx.write(res);
-        res.end();
+        res.send(buffer);
 
     } catch (error) {
         console.error(error);
