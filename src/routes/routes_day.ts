@@ -338,8 +338,6 @@ routerData.get('/admin/download-zip', async (req: Request, res: Response) => {
         }
 
         let adaFileTerproses = false;
-        
-        // 1. BUAT WADAH PENAMPUNG DATA
         let semuaDataBaris: any[] = []; 
 
         for (const fileData of filesDipilih) {
@@ -367,8 +365,13 @@ routerData.get('/admin/download-zip', async (req: Request, res: Response) => {
                             for (let i = 2; i <= rowCount; i++) {
                                 const row = wsKaryawan.getRow(i);
                                 if (row.hasValues) {
-                                    // BUKAN DI-ADD KE EXCEL, TAPI DIMASUKKAN KE ARRAY DULU
-                                    semuaDataBaris.push(row.values); 
+                                    // BUKAN row.values mentah lagi.
+                                    // Kita ambil kolom 1 sampai 9 (Pers.No sampai URL) secara presisi agar XML Excel tidak corrupt
+                                    const dataKolomBersih: any[] = [];
+                                    for (let col = 1; col <= 9; col++) {
+                                        dataKolomBersih.push(row.getCell(col).value);
+                                    }
+                                    semuaDataBaris.push(dataKolomBersih); 
                                 }
                             }
                             adaFileTerproses = true;
@@ -384,40 +387,45 @@ routerData.get('/admin/download-zip', async (req: Request, res: Response) => {
             return res.status(404).json({ error: 'Data gagal diproses atau semua Excel kosong.' });
         }
 
-        // 2. FUNGSI BANTUAN UNTUK MENGAMBIL NILAI SEL DENGAN AMAN
         const getCellValue = (val: any) => {
             if (val === null || val === undefined) return '';
-            if (val instanceof Date) return val.getTime().toString(); // Urutkan tanggal
+            if (val instanceof Date) return val.getTime().toString(); 
             if (typeof val === 'object') return (val.result || val.text || '').toString();
             return val.toString();
         };
 
-        // 3. PROSES SORTING (KOLOM B DULU, JIKA SAMA BARU KOLOM A)
+        // KARENA ARRAY SUDAH BERSIH (0-indexed), MAKA:
+        // Kolom A (Pers.No) = index 0
+        // Kolom B (Date)    = index 1
         semuaDataBaris.sort((baris1, baris2) => {
-            // Di exceljs, index array selalu dimulai dari 1 (0 selalu kosong)
-            // Kolom A = index 1, Kolom B = index 2
-            const valA1 = getCellValue(baris1[1]);
-            const valA2 = getCellValue(baris2[1]);
-            const valB1 = getCellValue(baris1[2]);
-            const valB2 = getCellValue(baris2[2]);
+            const valA1 = getCellValue(baris1[0]); 
+            const valA2 = getCellValue(baris2[0]);
+            const valB1 = getCellValue(baris1[1]); 
+            const valB2 = getCellValue(baris2[1]);
 
-            // Urutkan berdasarkan Kolom B (A - Z)
             if (valB1 < valB2) return -1;
             if (valB1 > valB2) return 1;
 
-            // Jika Kolom B nilainya sama, urutkan berdasarkan Kolom A (A - Z)
             if (valA1 < valA2) return -1;
             if (valA1 > valA2) return 1;
 
             return 0;
         });
 
-        // 4. MASUKKAN DATA YANG SUDAH RAPI KE DALAM TEMPLATE
+        // 4. MASUKKAN DATA KE TEMPLATE & ATUR TINGGI BARIS
         for (const baris of semuaDataBaris) {
-            worksheetTemplate.addRow(baris);
+            const rowBaru = worksheetTemplate.addRow(baris);
+            
+            // PAKSA TINGGI BARIS MENJADI 15
+            rowBaru.height = 15; 
+            
+            // Opsional: Menjaga font/alignment agar rapi sesuai template
+            rowBaru.eachCell((cell) => {
+                cell.alignment = { vertical: 'middle', horizontal: 'left' };
+            });
         }
 
-        // 5. BUNGKUS DAN KIRIM KE BROWSER SEPERTI BIASA
+        // 5. BUNGKUS KE BUFFER DAN KIRIM
         const buffer = await workbookTemplate.xlsx.writeBuffer();
 
         res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
