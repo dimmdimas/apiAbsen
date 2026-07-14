@@ -412,16 +412,34 @@ routerData.get('/admin/download-zip', async (req: Request, res: Response) => {
             return 0;
         });
 
+        const formatPerataan: { [key: number]: 'left' | 'right' } = {
+            1: 'left',   // A
+            2: 'right',  // B
+            3: 'right',  // C
+            4: 'left',   // D
+            5: 'left',   // E
+            6: 'right',  // F
+            7: 'right',  // G
+            8: 'left',   // H
+            9: 'left'    // I
+        };
+
         // 4. MASUKKAN DATA KE TEMPLATE & ATUR TINGGI BARIS
         for (const baris of semuaDataBaris) {
+            // Karena kita pakai addRow, ini otomatis ditambahkan dari baris ke-2 ke bawah
+            // Baris ke-1 (header template) 100% aman dan tidak tersentuh
             const rowBaru = worksheetTemplate.addRow(baris);
             
-            // PAKSA TINGGI BARIS MENJADI 15
+            // Paksa tinggi baris menjadi 15
             rowBaru.height = 15; 
             
-            // Opsional: Menjaga font/alignment agar rapi sesuai template
-            rowBaru.eachCell((cell) => {
-                cell.alignment = { vertical: 'middle', horizontal: 'left' };
+            // Terapkan format alignment spesifik ke setiap sel di baris ini
+            rowBaru.eachCell((cell, colNumber) => {
+                const posisiRata = formatPerataan[colNumber] || 'left';
+                cell.alignment = { 
+                    vertical: 'middle', 
+                    horizontal: posisiRata 
+                };
             });
         }
 
