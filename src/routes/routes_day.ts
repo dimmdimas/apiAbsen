@@ -6,6 +6,7 @@ import path from "path";
 import fs from "fs";
 import { ZipArchive } from "archiver";
 import xlsx from 'xlsx';
+import ExcelJS from 'exceljs';
 
 const routerData = Router();
 
@@ -302,7 +303,6 @@ routerData.get('/admin/download-zip', async (req: Request, res: Response) => {
         }
 
         const semuaFile = await FileModel.find({});
-        // 1. Filter yang lebih longgar: asalkan ada kata "day1" atau "day2" di path-nya
         const filesDipilih = semuaFile.filter(file => file.path.includes(targetDay));
 
         if (filesDipilih.length === 0) {
@@ -314,68 +314,98 @@ routerData.get('/admin/download-zip', async (req: Request, res: Response) => {
         if (targetDay === 'day2') configDay = await Day2.findOne().sort({ _id: 1 });
 
         const tanggalTeks = configDay?.tanggal ? ` ${configDay.tanggal}` : '';
-        const finalFileName = `Lampiran Lembur_${tanggalTeks}.zip`;
+        // Ubah ekstensi menjadi .xlsx
+        const finalFileName = `Lampiran_Lembur_${targetDay.toUpperCase()}${tanggalTeks}.xlsx`;
 
-        res.setHeader('Content-Type', 'application/zip');
+        // 1. Tentukan path file template Anda
+        // Sesuaikan nama file template dengan yang Anda simpan di server
+        // KODE BARU YANG BENAR
+        // Gunakan process.cwd() agar otomatis mendeteksi folder utama project
+        const templatePath = path.join(process.cwd(), 'src', 'templates', 'Lampiran_Lembur.xlsx');
+
+        if (!fs.existsSync(templatePath)) {
+            return res.status(500).json({ error: 'File template Excel tidak ditemukan di server.' });
+        }
+
+        // 2. Load file template
+        const workbookTemplate = new ExcelJS.Workbook();
+        await workbookTemplate.xlsx.readFile(templatePath);
+
+        // Ambil sheet pertama dari template
+        const worksheetTemplate = workbookTemplate.getWorksheet(1);
+        if (!worksheetTemplate) {
+            return res.status(500).json({ error: 'Sheet tidak ditemukan di dalam template.' });
+        }
+
+        let adaFileTerproses = false;
+
+        // 3. Loop semua file Excel karyawan yang diupload
+        for (const fileData of filesDipilih) {
+            // 1. Bersihkan path dari backslash (Windows) dan ambil NAMA FILE-nya saja
+            const rawPath = String(fileData.path).replace(/\\/g, '/');
+            const fileNameFromDB = path.basename(rawPath).trim();
+            
+            // 2. Tembak langsung ke folder fisiknya berdasarkan targetDay
+            const folderFisik = path.join('/home/tomat/apiAbsen', 'uploads', targetDay);
+
+            console.log(`[DEBUG] Mencari file "${fileNameFromDB}" di dalam "${folderFisik}"`);
+
+            if (fs.existsSync(folderFisik)) {
+                // 3. Ambil daftar SEMUA file yang benar-benar ada di Linux saat ini
+                const daftarFileFisik = fs.readdirSync(folderFisik);
+
+                // 4. Cari file yang namanya cocok (mengabaikan huruf besar/kecil & spasi gaib)
+                const fileDitemukan = daftarFileFisik.find(f => 
+                    f.toLowerCase().includes(fileNameFromDB.toLowerCase()) || 
+                    fileNameFromDB.toLowerCase().includes(f.toLowerCase())
+                );
+
+                if (fileDitemukan) {
+                    const realPath = path.join(folderFisik, fileDitemukan);
+                    
+                    try {
+                        const wbKaryawan = new ExcelJS.Workbook();
+                        await wbKaryawan.xlsx.readFile(realPath);
+                        const wsKaryawan = wbKaryawan.getWorksheet(1);
+
+                        if (wsKaryawan) {
+                            const rowCount = wsKaryawan.rowCount;
+                            for (let i = 2; i <= rowCount; i++) {
+                                const row = wsKaryawan.getRow(i);
+                                if (row.hasValues) {
+                                    worksheetTemplate.addRow(row.values);
+                                }
+                            }
+                            adaFileTerproses = true;
+                            console.log(`[DEBUG] ✅ Berhasil menggabungkan: ${fileDitemukan}`);
+                        }
+                    } catch (err: any) {
+                        console.log(`[DEBUG] ❌ Gagal memproses excel: ${err.message}`);
+                    }
+                } else {
+                    console.log(`[DEBUG] ❌ File fisik tidak ditemukan di dalam folder: ${fileNameFromDB}`);
+                }
+            } else {
+                 console.log(`[DEBUG] ❌ Folder fisik tidak ditemukan: ${folderFisik}`);
+            }
+        }
+
+        if (!adaFileTerproses) {
+            return res.status(404).json({ error: 'Data ada di database, tapi semua file fisik gagal diproses atau hilang.' });
+        }
+
+        // 4. Kirim file gabungan langsung ke browser sebagai Excel (.xlsx)
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
         res.setHeader('Content-Disposition', `attachment; filename="${finalFileName}"`);
 
-        const archive = new (ZipArchive as any)({
-            zlib: { level: 9 }, 
-        });
-
-        res.on("close", function () {
-            console.log(archive.pointer() + " total bytes berhasil dibungkus!");
-        });
-
-        archive.on('error', (err: Error) => {
-            console.error('Archive Error:', err);
-            if (!res.headersSent) res.status(500).json({ error: 'Gagal membuat ZIP' });
-        });
-
-        archive.pipe(res);
-
-        let adaFileTerbungkus = false;
-
-        for (const fileData of filesDipilih) {
-            // 1. "Cuci" teks path dari karakter gaib, spasi berlebih, dan enter
-            const rawPath = String(fileData.path);
-            const cleanPath = rawPath.replace(/[\r\n]+/g, '').trim();
-            
-            // 2. Pastikan path selalu absolute mengarah ke root project Anda
-            let realPath = cleanPath;
-            if (!path.isAbsolute(cleanPath)) {
-                // Paksa agar selalu berpatokan pada folder apiAbsen, bukan dist/
-                realPath = path.join('/home/tomat/apiAbsen', cleanPath);
-            }
-
-            // Gunakan tanda kutip ganda di log agar kita bisa melihat jika ada spasi nyasar!
-            console.log(`[DEBUG] Mencoba akses: "${realPath}"`);
-
-            try {
-                // 3. Paksa Node mengecek apakah dia punya izin BACA (Read) file ini
-                fs.accessSync(realPath, fs.constants.R_OK);
-                
-                // Jika lolos tanpa masuk catch, berarti file ada dan bisa dibaca!
-                archive.file(realPath, { name: fileData.filename });
-                adaFileTerbungkus = true;
-                console.log(`[DEBUG] ✅ Berhasil dibungkus: ${fileData.filename}`);
-                
-            } catch (err: any) {
-                // 4. Tangkap error ASLI dari mesin Linux
-                console.log(`[DEBUG] ❌ Gagal akses file. Error Sistem: ${err.message}`);
-            }
-        }
-
-        if (!adaFileTerbungkus) {
-            return res.status(404).json({ error: 'Data ada di database, tapi semua file fisik ditolak oleh server (cek log PM2).' });
-        }
-
-        await archive.finalize();
+        // Tulis workbook ke response stream
+        await workbookTemplate.xlsx.write(res);
+        res.end();
 
     } catch (error) {
         console.error(error);
         if (!res.headersSent) {
-            res.status(500).json({ error: 'Gagal mendownload ZIP' });
+            res.status(500).json({ error: 'Gagal mendownload Excel gabungan' });
         }
     }
 });
