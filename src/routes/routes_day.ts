@@ -75,10 +75,10 @@ const hapusFileLama = async () => {
             if (fs.existsSync(dirPath)) {
                 // Ambil semua daftar file di dalam folder tersebut
                 const files = fs.readdirSync(dirPath);
-                
+
                 for (const file of files) {
                     const filePath = path.join(dirPath, file);
-                    
+
                     // Pastikan yang dihapus hanya file (bukan folder di dalamnya jika ada)
                     if (fs.statSync(filePath).isFile()) {
                         fs.unlinkSync(filePath);
@@ -91,7 +91,7 @@ const hapusFileLama = async () => {
         // 2. Setelah fisik bersih, hapus semua riwayat di database
         await FileModel.deleteMany({});
         console.log("✅ File fisik di uploads/day1, uploads/day2, dan database berhasil dibersihkan total.");
-        
+
     } catch (error) {
         console.error("❌ Gagal menghapus file lama:", error);
     }
@@ -359,17 +359,17 @@ routerData.get('/admin/download-zip', async (req: Request, res: Response) => {
         }
 
         let adaFileTerproses = false;
-        let semuaDataBaris: any[] = []; 
+        let semuaDataBaris: any[] = [];
 
         // --- 1. AMBIL SEMUA DATA KARYAWAN DARI DATABASE ---
         // Ganti 'DataUser' dengan nama Model Karyawan yang Anda gunakan (misal: UserModel)
-        const semuaKaryawan = await User.find({}); 
-        
+        const semuaKaryawan = await User.find({});
+
         // Buat "Kamus" (Map) agar pencarian nama secepat kilat tanpa query DB lagi
         const mapNamaKaryawan: Record<string, string> = {};
         semuaKaryawan.forEach(karyawan => {
             // Asumsi field di database Anda bernama 'nik' dan 'nama'
-            mapNamaKaryawan[karyawan.nik] = karyawan.nama; 
+            mapNamaKaryawan[karyawan.nik] = karyawan.nama;
         });
 
         for (const fileData of filesDipilih) {
@@ -379,14 +379,14 @@ routerData.get('/admin/download-zip', async (req: Request, res: Response) => {
 
             if (fs.existsSync(folderFisik)) {
                 const daftarFileFisik = fs.readdirSync(folderFisik);
-                const fileDitemukan = daftarFileFisik.find(f => 
-                    f.toLowerCase().includes(fileNameFromDB.toLowerCase()) || 
+                const fileDitemukan = daftarFileFisik.find(f =>
+                    f.toLowerCase().includes(fileNameFromDB.toLowerCase()) ||
                     fileNameFromDB.toLowerCase().includes(f.toLowerCase())
                 );
 
                 if (fileDitemukan) {
                     const realPath = path.join(folderFisik, fileDitemukan);
-                    
+
                     try {
                         const wbKaryawan = new ExcelJS.Workbook();
                         await wbKaryawan.xlsx.readFile(realPath);
@@ -398,25 +398,30 @@ routerData.get('/admin/download-zip', async (req: Request, res: Response) => {
                                 const row = wsKaryawan.getRow(i);
                                 if (row.hasValues) {
                                     const dataKolomBersih: any[] = [];
-                                    
-                                    // Kolom 1 dari Excel asli (Pers.No / NIK)
+
+                                    // 1. Ambil NIK dan BERSIHKAN TOTAL dari karakter gaib/spasi/enter
                                     const nikValue = row.getCell(1).value;
-                                    const nikString = nikValue ? nikValue.toString().trim() : '';
-                                    
-                                    // Cari nama berdasarkan NIK di "Kamus" yang kita buat tadi
-                                    const namaKaryawan = mapNamaKaryawan[nikString] || '-';
+                                    // replace(/[^a-zA-Z0-9]/g, '') akan membuang SEMUA karakter kecuali huruf dan angka
+                                    const nikString = nikValue ? String(nikValue).replace(/[^a-zA-Z0-9]/g, '') : '';
 
-                                    // --- SUSUN ULANG ARRAY (MENGGESER KE KANAN) ---
+                                    // 2. Cari nama di "Kamus" Database
+                                    const namaKaryawan = mapNamaKaryawan[nikString];
+
+                                    // 3. Siapkan teks final. Jika benar-benar tidak ada, beri tanda tanya panjang
+                                    const namaFinal = (namaKaryawan && namaKaryawan.trim() !== '') ? namaKaryawan : '??? TIDAK TERDAFTAR ???';
+
+                                    // --- 4. PAKSA SUSUNAN ARRAY BARU AGAR SELALU BERGESER ---
+                                    // (Jangan gunakan if-else di sini, WAJIB di-push berurutan!)
                                     dataKolomBersih.push(nikString);    // Kolom A: NIK
-                                    dataKolomBersih.push(namaKaryawan); // Kolom B: Nama (BARU)
+                                    dataKolomBersih.push(namaFinal);    // Kolom B: Nama Karyawan
 
-                                    // Masukkan sisa data asli dari kolom 2 (Date) sampai 9 (URL)
-                                    // ke posisi C, D, E, dan seterusnya...
+                                    // 5. Masukkan sisa data asli dari kolom 2 (Date) sampai 9 (URL)
+                                    // Otomatis menempati Kolom C, D, E, dst...
                                     for (let col = 2; col <= 9; col++) {
                                         dataKolomBersih.push(row.getCell(col).value);
                                     }
-                                    
-                                    semuaDataBaris.push(dataKolomBersih); 
+
+                                    semuaDataBaris.push(dataKolomBersih);
                                 }
                             }
                             adaFileTerproses = true;
@@ -434,7 +439,7 @@ routerData.get('/admin/download-zip', async (req: Request, res: Response) => {
 
         const getCellValue = (val: any) => {
             if (val === null || val === undefined) return '';
-            if (val instanceof Date) return val.getTime().toString(); 
+            if (val instanceof Date) return val.getTime().toString();
             if (typeof val === 'object') return (val.result || val.text || '').toString();
             return val.toString();
         };
@@ -442,11 +447,11 @@ routerData.get('/admin/download-zip', async (req: Request, res: Response) => {
         // --- 2. UPDATE SORTING (KARENA DATE SEKARANG DI INDEX 2) ---
         // Array Baru: [0] = NIK, [1] = Nama, [2] = Date
         semuaDataBaris.sort((baris1, baris2) => {
-            const valNIK1 = getCellValue(baris1[0]); 
+            const valNIK1 = getCellValue(baris1[0]);
             const valNIK2 = getCellValue(baris2[0]);
-            
+
             // Urutkan berdasarkan Tanggal dulu (Sekarang di index 2)
-            const valDate1 = getCellValue(baris1[2]); 
+            const valDate1 = getCellValue(baris1[2]);
             const valDate2 = getCellValue(baris2[2]);
 
             if (valDate1 < valDate2) return -1;
@@ -476,13 +481,13 @@ routerData.get('/admin/download-zip', async (req: Request, res: Response) => {
 
         for (const baris of semuaDataBaris) {
             const rowBaru = worksheetTemplate.addRow(baris);
-            rowBaru.height = 15; 
-            
+            rowBaru.height = 15;
+
             rowBaru.eachCell((cell, colNumber) => {
                 const posisiRata = formatPerataan[colNumber] || 'left';
-                cell.alignment = { 
-                    vertical: 'middle', 
-                    horizontal: posisiRata 
+                cell.alignment = {
+                    vertical: 'middle',
+                    horizontal: posisiRata
                 };
             });
         }
