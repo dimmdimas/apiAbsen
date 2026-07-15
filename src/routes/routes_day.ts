@@ -63,16 +63,36 @@ const formatTanggalIndo = (dateStr: string) => {
 
 const hapusFileLama = async () => {
     try {
-        const semuaFile = await FileModel.find({});
-        for (const file of semuaFile) {
-            if (fs.existsSync(file.path)) {
-                fs.unlinkSync(file.path);
+        // 1. Targetkan langsung ke folder fisik yang spesifik
+        const targetFolders = ['day1', 'day2'];
+
+        for (const folder of targetFolders) {
+            // Gunakan process.cwd() agar path selalu akurat baik di lokal maupun VPS
+            const dirPath = path.join(process.cwd(), 'uploads', folder);
+
+            // Cek apakah foldernya ada
+            if (fs.existsSync(dirPath)) {
+                // Ambil semua daftar file di dalam folder tersebut
+                const files = fs.readdirSync(dirPath);
+                
+                for (const file of files) {
+                    const filePath = path.join(dirPath, file);
+                    
+                    // Pastikan yang dihapus hanya file (bukan folder di dalamnya jika ada)
+                    if (fs.statSync(filePath).isFile()) {
+                        fs.unlinkSync(filePath);
+                        console.log(`[DEBUG] Menghapus file fisik: ${file}`);
+                    }
+                }
             }
         }
+
+        // 2. Setelah fisik bersih, hapus semua riwayat di database
         await FileModel.deleteMany({});
-        console.log("File Excel dari lembur sebelumnya berhasil dibersihkan.");
+        console.log("✅ File fisik di uploads/day1, uploads/day2, dan database berhasil dibersihkan total.");
+        
     } catch (error) {
-        console.error("Gagal menghapus file lama:", error);
+        console.error("❌ Gagal menghapus file lama:", error);
     }
 };
 
