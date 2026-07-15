@@ -351,12 +351,19 @@ routerData.get('/admin/download-zip', async (req: Request, res: Response) => {
         // 2. Load file template
         const workbookTemplate = new ExcelJS.Workbook();
         await workbookTemplate.xlsx.readFile(templatePath);
-
-        // Ambil sheet pertama dari template
+        
         const worksheetTemplate = workbookTemplate.getWorksheet(1);
         if (!worksheetTemplate) {
             return res.status(500).json({ error: 'Sheet tidak ditemukan di dalam template.' });
         }
+
+        // === TAMBAHKAN KODE PENGAMAN INI ===
+        // Selama jumlah baris di template lebih dari 1 (artinya ada data di bawah header),
+        // hapus baris ke-2 secara terus menerus sampai bersih total.
+        while (worksheetTemplate.rowCount > 1) {
+            worksheetTemplate.spliceRows(2, 1);
+        }
+        // ==================================
 
         let adaFileTerproses = false;
         let semuaDataBaris: any[] = [];
