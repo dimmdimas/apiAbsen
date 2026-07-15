@@ -7,6 +7,7 @@ import fs from "fs";
 import { ZipArchive } from "archiver";
 import xlsx from 'xlsx';
 import ExcelJS from 'exceljs';
+import { User } from "../models/user.js";
 
 const routerData = Router();
 
@@ -360,6 +361,17 @@ routerData.get('/admin/download-zip', async (req: Request, res: Response) => {
         let adaFileTerproses = false;
         let semuaDataBaris: any[] = []; 
 
+        // --- 1. AMBIL SEMUA DATA KARYAWAN DARI DATABASE ---
+        // Ganti 'DataUser' dengan nama Model Karyawan yang Anda gunakan (misal: UserModel)
+        const semuaKaryawan = await User.find({}); 
+        
+        // Buat "Kamus" (Map) agar pencarian nama secepat kilat tanpa query DB lagi
+        const mapNamaKaryawan: Record<string, string> = {};
+        semuaKaryawan.forEach(karyawan => {
+            // Asumsi field di database Anda bernama 'nik' dan 'nama'
+            mapNamaKaryawan[karyawan.nik] = karyawan.nama; 
+        });
+
         for (const fileData of filesDipilih) {
             const rawPath = String(fileData.path).replace(/\\/g, '/');
             const fileNameFromDB = path.basename(rawPath).trim();
@@ -385,12 +397,25 @@ routerData.get('/admin/download-zip', async (req: Request, res: Response) => {
                             for (let i = 2; i <= rowCount; i++) {
                                 const row = wsKaryawan.getRow(i);
                                 if (row.hasValues) {
-                                    // BUKAN row.values mentah lagi.
-                                    // Kita ambil kolom 1 sampai 9 (Pers.No sampai URL) secara presisi agar XML Excel tidak corrupt
                                     const dataKolomBersih: any[] = [];
-                                    for (let col = 1; col <= 9; col++) {
+                                    
+                                    // Kolom 1 dari Excel asli (Pers.No / NIK)
+                                    const nikValue = row.getCell(1).value;
+                                    const nikString = nikValue ? nikValue.toString().trim() : '';
+                                    
+                                    // Cari nama berdasarkan NIK di "Kamus" yang kita buat tadi
+                                    const namaKaryawan = mapNamaKaryawan[nikString] || '-';
+
+                                    // --- SUSUN ULANG ARRAY (MENGGESER KE KANAN) ---
+                                    dataKolomBersih.push(nikString);    // Kolom A: NIK
+                                    dataKolomBersih.push(namaKaryawan); // Kolom B: Nama (BARU)
+
+                                    // Masukkan sisa data asli dari kolom 2 (Date) sampai 9 (URL)
+                                    // ke posisi C, D, E, dan seterusnya...
+                                    for (let col = 2; col <= 9; col++) {
                                         dataKolomBersih.push(row.getCell(col).value);
                                     }
+                                    
                                     semuaDataBaris.push(dataKolomBersih); 
                                 }
                             }
@@ -414,46 +439,45 @@ routerData.get('/admin/download-zip', async (req: Request, res: Response) => {
             return val.toString();
         };
 
-        // KARENA ARRAY SUDAH BERSIH (0-indexed), MAKA:
-        // Kolom A (Pers.No) = index 0
-        // Kolom B (Date)    = index 1
+        // --- 2. UPDATE SORTING (KARENA DATE SEKARANG DI INDEX 2) ---
+        // Array Baru: [0] = NIK, [1] = Nama, [2] = Date
         semuaDataBaris.sort((baris1, baris2) => {
-            const valA1 = getCellValue(baris1[0]); 
-            const valA2 = getCellValue(baris2[0]);
-            const valB1 = getCellValue(baris1[1]); 
-            const valB2 = getCellValue(baris2[1]);
+            const valNIK1 = getCellValue(baris1[0]); 
+            const valNIK2 = getCellValue(baris2[0]);
+            
+            // Urutkan berdasarkan Tanggal dulu (Sekarang di index 2)
+            const valDate1 = getCellValue(baris1[2]); 
+            const valDate2 = getCellValue(baris2[2]);
 
-            if (valB1 < valB2) return -1;
-            if (valB1 > valB2) return 1;
+            if (valDate1 < valDate2) return -1;
+            if (valDate1 > valDate2) return 1;
 
-            if (valA1 < valA2) return -1;
-            if (valA1 > valA2) return 1;
+            // Jika Tanggal sama, urutkan berdasarkan NIK (Index 0)
+            if (valNIK1 < valNIK2) return -1;
+            if (valNIK1 > valNIK2) return 1;
 
             return 0;
         });
 
+        // --- 3. MASUKKAN DATA KE TEMPLATE & ATUR ALIGNMENT ---
+        // Peta perataan teks bertambah menjadi 10 kolom
         const formatPerataan: { [key: number]: 'left' | 'right' } = {
-            1: 'left',   // A
-            2: 'right',  // B
-            3: 'right',  // C
-            4: 'left',   // D
-            5: 'left',   // E
-            6: 'right',  // F
-            7: 'right',  // G
-            8: 'left',   // H
-            9: 'left'    // I
+            1: 'left',   // A: NIK
+            2: 'left',   // B: Nama (Rata kiri agar rapi)
+            3: 'right',  // C: Date (bergeser)
+            4: 'right',  // D: Time (bergeser)
+            5: 'left',   // E: Time Zone
+            6: 'left',   // F: Clock Type
+            7: 'right',  // G: Longitude
+            8: 'right',  // H: Latitude
+            9: 'left',   // I: Document ID
+            10: 'left'   // J: URL
         };
 
-        // 4. MASUKKAN DATA KE TEMPLATE & ATUR TINGGI BARIS
         for (const baris of semuaDataBaris) {
-            // Karena kita pakai addRow, ini otomatis ditambahkan dari baris ke-2 ke bawah
-            // Baris ke-1 (header template) 100% aman dan tidak tersentuh
             const rowBaru = worksheetTemplate.addRow(baris);
-            
-            // Paksa tinggi baris menjadi 15
             rowBaru.height = 15; 
             
-            // Terapkan format alignment spesifik ke setiap sel di baris ini
             rowBaru.eachCell((cell, colNumber) => {
                 const posisiRata = formatPerataan[colNumber] || 'left';
                 cell.alignment = { 
