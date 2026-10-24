@@ -1,7 +1,7 @@
 import mongoose from 'mongoose'
 
 const connectDB = async () => {
-    const url = 'mongodb://tomat:tomat@100.104.189.99:27017/?authSource=admin'
+    const url = 'mongodb://tomat:tomat@127.0.0.1:27017/?authSource=admin'
     try {
         await mongoose.connect(url, {
             dbName: 'absenlembur_gardira'
