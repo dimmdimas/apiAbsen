@@ -24,8 +24,8 @@ async function server() {
   app.use(express.json({ limit: '10mb' }));
 
 
-  app.listen(PORT, () => {
-    console.log(`⚡️ Server berjalan di http://localhost:${PORT}`);
+  app.listen(PORT, '127.0.0.1', () => {
+    console.log(`⚡️ Server berjalan di http://127.0.0.1:${PORT}`);
     console.log(db);
   });
 }
